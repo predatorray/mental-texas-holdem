@@ -36,3 +36,38 @@
     transform: rotate(360deg);
   }
 }
+
+.card {
+  width: 100px;
+  height: 150px; /* x1.5 */
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
+}
+
+.community-cards {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 600px; /* (width(.card) + margin-x(.card)) * 5 */
+}
+
+.community-cards .card {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+.hand-cards {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translate(-50%, 0);
+}
+
+.hand-cards .card {
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
