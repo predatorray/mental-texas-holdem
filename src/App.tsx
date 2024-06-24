@@ -1,108 +1,61 @@
-import React, { useEffect, useState } from 'react';
-import { EncodedDeck, Player, StandardCard, createPlayer, decodeStandardCard, encodeStandardCard, getStandard52Deck } from 'mental-poker-toolkit';
+import React from 'react';
 
 import './App.css';
 
 import CardImage from './components/CardImage';
-
-const useAliceAndBob = () => {
-  const [alice, setAlice] = useState<Player>();
-  const [bob, setBob] = useState<Player>();
-  const [communityCardsEncrypted, setCommunityCardsEncrypted] = useState<bigint[]>();
-
-  const [hands, setHands] = useState<StandardCard[]>();
-  const [communityCards, setCommunityCards] = useState<Array<StandardCard | null>>([null, null, null, null, null]);
-
-  useEffect(() => {
-    const loadCommunityCards = (async () => {
-      const deck = getStandard52Deck();
-      const alice = await createPlayer({
-        cards: deck.length,
-        bits: 128,
-      });
-      setAlice(alice);
-
-      const bob = await createPlayer({
-        cards: deck.length,
-        publicKey: alice.publicKey,
-        bits: 128,
-      });
-      setBob(bob);
-
-      const doubleDecrypt = (doubleEncrypted: bigint, offset: number): StandardCard => {
-        const decrypted = alice!.getIndividualKey(offset).decrypt(bob!.getIndividualKey(offset).decrypt(doubleEncrypted));
-        return decodeStandardCard(Number(decrypted));
-      }
-
-      const deckEncoded = new EncodedDeck(
-        deck.map((card) => BigInt(encodeStandardCard(card)))
-      );
-      const encryptedWithKeyA = alice.encryptAndShuffle(deckEncoded);
-      const encryptedWithKeyAKeyB = bob.encryptAndShuffle(encryptedWithKeyA);
-      const encryptedWithIndividualKeyAKeyB = alice.decryptAndEncryptIndividually(
-        encryptedWithKeyAKeyB
-      );
-      const encryptedBothKeysIndividually = bob.decryptAndEncryptIndividually(
-        encryptedWithIndividualKeyAKeyB
-      );
-
-      setCommunityCardsEncrypted(encryptedBothKeysIndividually.cards.slice(0, 5));
-
-      const handsEncrypted = encryptedBothKeysIndividually.cards.slice(5, 7);
-      setHands([
-        doubleDecrypt(handsEncrypted[0], 5),
-        doubleDecrypt(handsEncrypted[1], 6),
-      ]);
-    });
-    if (!communityCardsEncrypted) {
-      loadCommunityCards();
-    }
-  }, [
-    communityCardsEncrypted,
-  ]);
-
-  const flipCard = (offset: number) => {
-    if (alice && bob && communityCardsEncrypted) {
-      const cardDecrypted = bob.getIndividualKey(offset).decrypt(alice.getIndividualKey(offset).decrypt(communityCardsEncrypted[offset]));
-      const newCommunityCards = [...communityCards];
-      newCommunityCards[offset] = decodeStandardCard(Number(cardDecrypted));
-      setCommunityCards(newCommunityCards);
-    }
-  };
-
-  return {
-    ready: Boolean(alice && bob),
-    hands,
-    communityCards,
-    flipCard,
-  };
-};
+import useTexasHoldem from './lib/useTexasHoldem';
+import { useSearchParams } from 'react-router-dom';
 
 function App() {
+  const params = new URL(document.location.toString()).searchParams;
+  const gameRoomId = params.get('gameRoomId');
   const {
-    ready,
-    hands,
-    communityCards,
-    flipCard,
-  } = useAliceAndBob();
+    peerState,
+    playerId,
+    players,
+    amountsPerPlayer,
+    pot,
+    hole,
+    community,
+    startGame,
+  } = useTexasHoldem({
+    gameRoomId: gameRoomId || undefined,
+  });
   return (
     <div className="App">
       <div className="community-cards">
         {
-          ready ? (
-            communityCards.map((card, i) => 
-              <CardImage key={i} card={card} onClick={() => flipCard(i)}/>
-            )
-          ) : (
-            <>Shuffling the deck ...</>
-          )
+          (() => {
+            if (peerState !== 'opened') {
+              return <>Connecting...</>;
+            }
+            if (!gameRoomId && (!community || !hole)) {
+              return (
+                <button onClick={() => startGame()}>start</button>
+              )
+            }
+            if (community) {
+              return (
+                <>
+                  <CardImage card={community[0]}/>
+                  <CardImage card={community[1]}/>
+                  <CardImage card={community[2]}/>
+                  <CardImage card={community[3]}/>
+                  <CardImage card={community[4]}/>
+                </>
+              );
+            }
+          })()
         }
       </div>
       
       <div className="hand-cards">
           {
-            hands && hands.map((card, i) => 
-              <CardImage key={i} card={card}/>
+            hole && (
+              <>
+                <CardImage card={hole[0]}/>
+                <CardImage card={hole[1]}/>
+              </>
             )
           }
       </div>

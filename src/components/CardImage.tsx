@@ -12,7 +12,7 @@ export default function CardImage(props: CardImageProps) {
       className,
       ...otherAttributes
     } = props;
-    return <img className={className ? `card ${className}` : 'card'} src="/cards/back.svg" alt={alt ?? 'Back'} {...otherAttributes}/>;;
+    return <img className={className ? `card ${className}` : 'card'} src={`${process.env.PUBLIC_URL}/cards/back.svg`} alt={alt ?? 'Back'} {...otherAttributes}/>;;
   }
 
   const {
@@ -22,6 +22,6 @@ export default function CardImage(props: CardImageProps) {
     ...otherAttributes
   } = props;
   
-  const src = `/cards/${(card.suit.charAt(0) + card.rank).toLowerCase()}.svg`;
+  const src = `${process.env.PUBLIC_URL}/cards/${(card.suit.charAt(0) + card.rank).toLowerCase()}.svg`;
   return <img className={className ? `card ${className}` : 'card'} src={src} alt={alt ?? (card.suit + card.rank)} {...otherAttributes}/>;
 }
