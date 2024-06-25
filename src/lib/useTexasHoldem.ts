@@ -1,9 +1,9 @@
 import { PeerOptions } from "peerjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DecryptionKey, EncodedDeck, Player, PublicKey, StandardCard, createPlayer, decodeStandardCard, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
-import { safeStringify } from "./utils";
-import useGameRoom from "./useGameRoom";
+import useGameRoom, { GameEvent } from "./useGameRoom";
 import Deferred from "./Deferred";
+import EventEmitter from "eventemitter3";
 
 const CARDS = 52;
 
@@ -95,32 +95,17 @@ interface DecryptionKeyPair {
   bob?: DecryptionKey;
 }
 
-export default function useTexasHoldem(props: {
-  gameRoomId?: string;
-  peerOptions?: PeerOptions;
-}) {
-  const [players, setPlayers] = useState<string[]>();
-  const [amountsPerPlayer, setAmountsPerPlayer] = useState<Map<string, number>>();
-  const [pot, setPot] = useState<number>(0);
+type TexasHoldemEvents = {[K in TexasHoldemEvent['type']]: (e: ({type: K} & TexasHoldemEvent), fromWhom: string) => void};
 
-  const [deck, setDeck] = useState<EncodedDeck>();
-  const [decryptionKeyPairs, setDecryptionKeyPairs] = useState<DecryptionKeyPair[]>();
-
-  const {
-    playerId,
-    peerState,
-    members,
-    fireEvent,
-    gameEventEmitter,
-  } = useGameRoom<TexasHoldemEvent>({
-    gameRoomId: props.gameRoomId,
-    peerOptions: props.peerOptions,
-  });
-
-  const community: Community = useMemo(() => {
+function useCommunity(
+  players?: string[],
+  deck?: EncodedDeck,
+  decryptionKeyPairs?: DecryptionKeyPair[],
+): Community | null {
+  return useMemo(() => {
     // [0] - [4]
     if (!players || !deck || !decryptionKeyPairs) {
-      return [];
+      return null;
     }
     if (decryptionKeyPairs[0]?.alice && decryptionKeyPairs[0]?.bob
       && decryptionKeyPairs[1]?.alice && decryptionKeyPairs[1]?.bob
@@ -158,8 +143,15 @@ export default function useTexasHoldem(props: {
     }
     return [];
   }, [players, deck, decryptionKeyPairs]);
+}
 
-  const hole = useMemo(() => {
+function useHole(
+  players?: string[] | undefined,
+  deck?: EncodedDeck | undefined,
+  decryptionKeyPairs?: DecryptionKeyPair[] | undefined,
+  playerId?: string,
+): Hole | null {
+  return useMemo(() => {
     if (!players || !deck || !decryptionKeyPairs) {
       return null;
     }
@@ -179,10 +171,15 @@ export default function useTexasHoldem(props: {
         decodeStandardCard(Number(decryptionKeyPairs[holeOffsets[1]].alice!.decrypt(decryptionKeyPairs[holeOffsets[1]].bob!.decrypt(deck.cards[holeOffsets[1]])))),
       ];
     } else {
-      return [];
+      return null;
     }
   }, [players, deck, decryptionKeyPairs, playerId]);
+}
 
+function useFireEventCallbacks(
+  fireEvent: (e: GameEvent<TexasHoldemEvent>) => void,
+  playerId?: string,
+) {
   const firePublicEvent = useCallback((e: TexasHoldemEvent) => {
     fireEvent({
       type: 'public',
@@ -198,35 +195,17 @@ export default function useTexasHoldem(props: {
       data: e,
     });
   }, [fireEvent, playerId]);
+  return {
+    firePublicEvent,
+    firePrivateEvent,
+  };
+}
 
+function useAlice(
+  mentalPokerParticipants?: MentalPokerParticipants,
+  playerId?: string,
+) {
   const aliceDeferred: Deferred<Player | null> = useMemo(() => new Deferred(), []);
-  const bobDeferred: Deferred<Player | null> = useMemo(() => new Deferred(), []);
-  const [sharedPublicKey, setSharedPublicKey] = useState<PublicKey>();
-  const [mentalPokerParticipants, setMentalPokerParticipants] = useState<MentalPokerParticipants>();
-  const handleIfAlice = useCallback((handler: (alice: Player) => void) => {
-    aliceDeferred.promise.then(alice => {
-      console.debug('aliceDeferred is ready');
-      if (!alice) {
-        console.debug('skipped since not alice');
-        return;
-      }
-      console.debug('handling alice');
-      handler(alice);
-    });
-  }, [aliceDeferred]);
-  const handleIfBob = useCallback((handler: (bob: Player) => void) => {
-    bobDeferred.promise.then(bob => {
-      console.debug('bobDeferred is ready');
-      if (!bob) {
-        console.debug('skipped since not bob');
-        return;
-      }
-      console.debug('handling bob');
-      handler(bob);
-    });
-  }, [bobDeferred]);
-
-  // alice
   useEffect(() => {
     if (!mentalPokerParticipants) {
       return;
@@ -246,8 +225,40 @@ export default function useTexasHoldem(props: {
       aliceDeferred.resolve(null);
     }
   }, [aliceDeferred, mentalPokerParticipants, playerId]);
+  const handleIfAlice = useCallback((handler: (alice: Player) => void) => {
+    aliceDeferred.promise.then(alice => {
+      console.debug('aliceDeferred is ready');
+      if (!alice) {
+        console.debug('skipped since not alice');
+        return;
+      }
+      console.debug('handling alice');
+      handler(alice);
+    });
+  }, [aliceDeferred]);
+  return {
+    handleIfAlice,
+  };
+}
 
-  // bob
+function useBob(
+  mentalPokerParticipants?: MentalPokerParticipants,
+  playerId?: string,
+  sharedPublicKey?: PublicKey,
+) {
+  const bobDeferred: Deferred<Player | null> = useMemo(() => new Deferred(), []);
+  const handleIfBob = useCallback((handler: (bob: Player) => void) => {
+    bobDeferred.promise.then(bob => {
+      console.debug('bobDeferred is ready');
+      if (!bob) {
+        console.debug('skipped since not bob');
+        return;
+      }
+      console.debug('handling bob');
+      handler(bob);
+    });
+  }, [bobDeferred]);
+
   useEffect(() => {
     if (!mentalPokerParticipants) {
       return;
@@ -272,150 +283,225 @@ export default function useTexasHoldem(props: {
     }
   }, [bobDeferred, mentalPokerParticipants, playerId, sharedPublicKey]);
 
-  useEffect(() => {
+  return {
+    handleIfBob,
+  };
+}
+
+export default function useTexasHoldem(props: {
+  gameRoomId?: string;
+  peerOptions?: PeerOptions;
+}) {
+  const [players, setPlayers] = useState<string[]>();
+  const [amountsPerPlayer, setAmountsPerPlayer] = useState<Map<string, number>>();
+  const [pot, setPot] = useState<number>(0);
+
+  const [deck, setDeck] = useState<EncodedDeck>();
+  const [decryptionKeyPairs, setDecryptionKeyPairs] = useState<DecryptionKeyPair[]>();
+
+  const {
+    playerId,
+    peerState,
+    members,
+    fireEvent,
+    gameEventEmitter,
+  } = useGameRoom<TexasHoldemEvent>({
+    gameRoomId: props.gameRoomId,
+    peerOptions: props.peerOptions,
+  });
+
+  // translate GameEvents into TexasHoldemEvents
+  const texasHoldemEventEmitter = useMemo(() => {
+    const emitter = new EventEmitter<TexasHoldemEvents>();
     const eventHandler = (e: TexasHoldemEvent, fromWhom: string) => {
-      console.debug(`Received TexasHoldemEvent: ${safeStringify(e)}`);
-      if (!e || !e.type) {
-        console.error('missing event or type');
-        return;
-      }
-      console.info(`Processing TexasHoldemEvent of type '${e.type}'.`);
-      switch (e.type) {
-        case 'start':
-          setPlayers(e.players);
-          setMentalPokerParticipants(e.mentalPokerSettings);
-
-          handleIfAlice(alice => {
-            console.debug('Encrypting and shuffling the deck by Alice.');
-            const standard52Deck = getStandard52Deck();
-            const deckEncoded = new EncodedDeck(
-              standard52Deck.map((card) => BigInt(encodeStandardCard(card)))
-            );
-            const deckEncrypted = alice.encryptAndShuffle(deckEncoded);
-            firePublicEvent({
-              type: 'deck/step1',
-              deck: toStringEncodedDeck(deckEncrypted),
-              publicKey: {
-                p: alice.publicKey.p.toString(),
-                q: alice.publicKey.q.toString(),
-              }
-            });
-          });
-          break;
-        case 'deck/step1':
-          const publicKey = new PublicKey(BigInt(e.publicKey.p), BigInt(e.publicKey.q));
-          setSharedPublicKey(publicKey);
-          handleIfBob(bob => {
-            if (!bob) {
-              return;
-            }
-            console.debug('Double-encrypting and shuffling the deck by Bob.');
-            const encryptedWithKeyAKeyB = bob.encryptAndShuffle(toBigIntEncodedDeck(e.deck));
-            firePublicEvent({
-              type: 'deck/step2',
-              deck: toStringEncodedDeck(encryptedWithKeyAKeyB),
-            });
-          });
-          break;
-        case 'deck/step2':
-          handleIfAlice(alice => {
-            const encryptedWithIndividualKeyAKeyB = alice.decryptAndEncryptIndividually(toBigIntEncodedDeck(e.deck));
-            firePublicEvent({
-              type: 'deck/step3',
-              deck: toStringEncodedDeck(encryptedWithIndividualKeyAKeyB),
-            });
-          });
-          break;
-        case 'deck/step3':
-          handleIfBob(bob => {
-            const encryptedBothKeysIndividually = bob.decryptAndEncryptIndividually(toBigIntEncodedDeck(e.deck));
-            firePublicEvent({
-              type: 'deck/finalized',
-              deck: toStringEncodedDeck(encryptedBothKeysIndividually),
-            });
-          });
-          break;
-        case 'deck/finalized':
-          setDeck(toBigIntEncodedDeck(e.deck));
-          // deal cards if Alice or Bob
-          const dealCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
-            let cardOffset = 5;
-            for (const playerId of players!) {
-              const cardOffsets: [number, number] = [
-                cardOffset++,
-                cardOffset++,
-              ];
-              const dk = [
-                player.getIndividualKey(cardOffsets[0]).decryptionKey,
-                player.getIndividualKey(cardOffsets[1]).decryptionKey,
-              ];
-              console.info(`Dealing cards [ ${cardOffsets[0]}, ${cardOffsets[1]} ] to the player (peerId = ${playerId}).`);
-              firePrivateEvent({
-                type: 'card/decrypt',
-                cardOffset: cardOffsets[0],
-                aliceOrBob,
-                decryptionKey: {
-                  d: dk[0].d.toString(),
-                  n: dk[0].n.toString(),
-                },
-              }, playerId);
-              firePrivateEvent({
-                type: 'card/decrypt',
-                cardOffset: cardOffsets[1],
-                aliceOrBob,
-                decryptionKey: {
-                  d: dk[1].d.toString(),
-                  n: dk[1].n.toString(),
-                },
-              }, playerId);
-            }
-          }
-          handleIfAlice(alice => dealCards(alice, 'alice'));
-          handleIfBob(bob => dealCards(bob, 'bob'));
-          break;
-        case 'card/decrypt':
-          const dk = new DecryptionKey(BigInt(e.decryptionKey.d), BigInt(e.decryptionKey.n));
-          setDecryptionKeyPairs(curr => {
-            const newKeyPairs = curr ? [...curr] : Array(CARDS).fill({});
-            console.info(`The decryption key ${e.aliceOrBob} is available for the card [${e.cardOffset}]`);
-            switch (e.aliceOrBob) {
-              case 'alice':
-                newKeyPairs[e.cardOffset] = {
-                  ...newKeyPairs[e.cardOffset],
-                  alice: dk,
-                };
-                break;
-              case 'bob':
-                newKeyPairs[e.cardOffset] = {
-                  ...newKeyPairs[e.cardOffset],
-                  bob: dk,
-                };
-                break;
-            }
-            return newKeyPairs;
-          });
-          break;
-        case 'bet':
-          // TODO
-          switch (e.bet.action) {
-            case 'call':
-              break;
-            case 'raise':
-              break;
-            case 'fold':
-              break;
-            case 'all-in':
-              break;
-          }
-          break;
-      }
+      emitter.emit(e.type, e as any, fromWhom);
     };
 
-    gameEventEmitter.on('event', eventHandler);
+    gameEventEmitter.off('event');
+    gameEventEmitter.on('event', (e, fromWhom) => {
+      eventHandler(e, fromWhom);
+    });
+    return emitter;
+  }, [gameEventEmitter]);
+
+  const community = useCommunity(players, deck, decryptionKeyPairs);
+  const hole = useHole(players, deck, decryptionKeyPairs, playerId);
+
+  const {
+    firePublicEvent,
+    firePrivateEvent,
+  } = useFireEventCallbacks(fireEvent, playerId);
+
+  const [mentalPokerParticipants, setMentalPokerParticipants] = useState<MentalPokerParticipants>();
+  const [sharedPublicKey, setSharedPublicKey] = useState<PublicKey>();
+  const {
+    handleIfAlice,
+  } = useAlice(mentalPokerParticipants, playerId);
+  const {
+    handleIfBob,
+  } = useBob(mentalPokerParticipants, playerId, sharedPublicKey);
+
+  // start
+  useEffect(() => {
+    const handler = (e: GameStartEvent) => {
+      setPlayers(e.players);
+      setMentalPokerParticipants(e.mentalPokerSettings);
+
+      handleIfAlice(alice => {
+        console.debug('Encrypting and shuffling the deck by Alice.');
+        const standard52Deck = getStandard52Deck();
+        const deckEncoded = new EncodedDeck(
+          standard52Deck.map((card) => BigInt(encodeStandardCard(card)))
+        );
+        const deckEncrypted = alice.encryptAndShuffle(deckEncoded);
+        firePublicEvent({
+          type: 'deck/step1',
+          deck: toStringEncodedDeck(deckEncrypted),
+          publicKey: {
+            p: alice.publicKey.p.toString(),
+            q: alice.publicKey.q.toString(),
+          }
+        });
+      });
+    };
+    texasHoldemEventEmitter.on('start', handler);
     return () => {
-      gameEventEmitter.off('event', eventHandler);
+      texasHoldemEventEmitter.off('start', handler);
     };
-  }, [deck, firePrivateEvent, firePublicEvent, gameEventEmitter, handleIfAlice, handleIfBob, players]);
+  }, [firePublicEvent, handleIfAlice, texasHoldemEventEmitter]);
+
+  // deck/step1
+  useEffect(() => {
+    const handler = (e: DeckStep1Event) => {
+      const publicKey = new PublicKey(BigInt(e.publicKey.p), BigInt(e.publicKey.q));
+      setSharedPublicKey(publicKey);
+      handleIfBob(bob => {
+        if (!bob) {
+          return;
+        }
+        console.debug('Double-encrypting and shuffling the deck by Bob.');
+        const encryptedWithKeyAKeyB = bob.encryptAndShuffle(toBigIntEncodedDeck(e.deck));
+        firePublicEvent({
+          type: 'deck/step2',
+          deck: toStringEncodedDeck(encryptedWithKeyAKeyB),
+        });
+      });
+    };
+    texasHoldemEventEmitter.on('deck/step1', handler);
+    return () => {
+      texasHoldemEventEmitter.off('deck/step1', handler);
+    };
+  }, [firePublicEvent, handleIfBob, texasHoldemEventEmitter]);
+
+  // deck/step2
+  useEffect(() => {
+    const handler = (e: DeckStep2Event) => {
+      handleIfAlice(alice => {
+        const encryptedWithIndividualKeyAKeyB = alice.decryptAndEncryptIndividually(toBigIntEncodedDeck(e.deck));
+        firePublicEvent({
+          type: 'deck/step3',
+          deck: toStringEncodedDeck(encryptedWithIndividualKeyAKeyB),
+        });
+      });
+    };
+    texasHoldemEventEmitter.on('deck/step2', handler);
+    return () => {
+      texasHoldemEventEmitter.off('deck/step2', handler);
+    };
+  }, [firePublicEvent, handleIfAlice, texasHoldemEventEmitter]);
+
+  // deck/step3
+  useEffect(() => {
+    const handler = (e: DeckStep3Event) => {
+      handleIfBob(bob => {
+        const encryptedBothKeysIndividually = bob.decryptAndEncryptIndividually(toBigIntEncodedDeck(e.deck));
+        firePublicEvent({
+          type: 'deck/finalized',
+          deck: toStringEncodedDeck(encryptedBothKeysIndividually),
+        });
+      });
+    };
+    texasHoldemEventEmitter.on('deck/step3', handler);
+    return () => {
+      texasHoldemEventEmitter.off('deck/step3', handler);
+    };
+  }, [firePublicEvent, handleIfBob, texasHoldemEventEmitter]);
+
+  // deck/finalized
+  useEffect(() => {
+    const handler = (e: DeckFinalizedEvent) => {
+      setDeck(toBigIntEncodedDeck(e.deck));
+      // deal cards if Alice or Bob
+      const dealCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+        let cardOffset = 5;
+        for (const playerId of players!) {
+          const cardOffsets: [number, number] = [
+            cardOffset++,
+            cardOffset++,
+          ];
+          const dk = [
+            player.getIndividualKey(cardOffsets[0]).decryptionKey,
+            player.getIndividualKey(cardOffsets[1]).decryptionKey,
+          ];
+          console.info(`Dealing cards [ ${cardOffsets[0]}, ${cardOffsets[1]} ] to the player (peerId = ${playerId}).`);
+          firePrivateEvent({
+            type: 'card/decrypt',
+            cardOffset: cardOffsets[0],
+            aliceOrBob,
+            decryptionKey: {
+              d: dk[0].d.toString(),
+              n: dk[0].n.toString(),
+            },
+          }, playerId);
+          firePrivateEvent({
+            type: 'card/decrypt',
+            cardOffset: cardOffsets[1],
+            aliceOrBob,
+            decryptionKey: {
+              d: dk[1].d.toString(),
+              n: dk[1].n.toString(),
+            },
+          }, playerId);
+        }
+      }
+      handleIfAlice(alice => dealCards(alice, 'alice'));
+      handleIfBob(bob => dealCards(bob, 'bob'));
+    };
+    texasHoldemEventEmitter.on('deck/finalized', handler);
+    return () => {
+      texasHoldemEventEmitter.off('deck/finalized', handler);
+    };
+  }, [firePrivateEvent, handleIfAlice, handleIfBob, players, texasHoldemEventEmitter]);
+
+  // card/decrypt
+  useEffect(() => {
+    const handler = (e: DecryptCardEvent) => {
+      const dk = new DecryptionKey(BigInt(e.decryptionKey.d), BigInt(e.decryptionKey.n));
+      setDecryptionKeyPairs(curr => {
+        const newKeyPairs = curr ? [...curr] : Array(CARDS).fill({});
+        console.info(`The decryption key ${e.aliceOrBob} is available for the card [${e.cardOffset}]`);
+        switch (e.aliceOrBob) {
+          case 'alice':
+            newKeyPairs[e.cardOffset] = {
+              ...newKeyPairs[e.cardOffset],
+              alice: dk,
+            };
+            break;
+          case 'bob':
+            newKeyPairs[e.cardOffset] = {
+              ...newKeyPairs[e.cardOffset],
+              bob: dk,
+            };
+            break;
+        }
+        return newKeyPairs;
+      });
+    };
+    texasHoldemEventEmitter.on('card/decrypt', handler);
+    return () => {
+      texasHoldemEventEmitter.off('card/decrypt', handler);
+    };
+  }, [texasHoldemEventEmitter]);
 
   const startGame = useCallback(() => {
     setPlayers(curr => {

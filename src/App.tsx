@@ -28,13 +28,11 @@ function App() {
           (() => {
             if (peerState !== 'opened') {
               return <>Connecting...</>;
-            }
-            if (!gameRoomId && (!community || !hole)) {
+            } else if (!gameRoomId && (!community || !hole)) {
               return (
                 <button onClick={() => startGame()}>start</button>
               )
-            }
-            if (community) {
+            } else if (hole && community) {
               return (
                 <>
                   <CardImage card={community[0]}/>
@@ -44,6 +42,8 @@ function App() {
                   <CardImage card={community[4]}/>
                 </>
               );
+            } else {
+              return <>Shuffling...</>;
             }
           })()
         }
@@ -51,7 +51,7 @@ function App() {
       
       <div className="hand-cards">
           {
-            hole && (
+            (hole && community) && (
               <>
                 <CardImage card={hole[0]}/>
                 <CardImage card={hole[1]}/>

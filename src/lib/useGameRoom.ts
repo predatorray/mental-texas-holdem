@@ -24,6 +24,8 @@ type InternalEvent = {
   data: string[];
 }
 
+// type EventTypes<T> = {[K in GameEvent<T>['type']]: (e: ({type: K} & GameEvent<T>)) => void};
+
 export type GameRoomState = 'unready' | 'ready';
 
 type GameRoomEvents<T> = {
