@@ -1,11 +1,10 @@
 import { PeerOptions } from "peerjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DecryptionKey, EncodedDeck, Player, PublicKey, StandardCard, createPlayer, decodeStandardCard, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
-import useGameRoom, { GameEvent } from "./useGameRoom";
+import { DecryptionKey, EncodedDeck, Player, PublicKey, createPlayer, decodeStandardCard, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
+import useGameRoom from "./useGameRoom";
 import Deferred from "./Deferred";
 import EventEmitter from "eventemitter3";
-
-const CARDS = 52;
+import { CARDS, Community, Hole } from "./rules";
 
 export interface GameStartEvent {
   type: 'start';
@@ -81,14 +80,6 @@ interface MentalPokerParticipants {
   alice: string;
   bob: string;
 }
-
-export type Hole = [StandardCard, StandardCard];
-export type Community =
-  | [] // pre-flop
-  | [StandardCard, StandardCard, StandardCard] // flop
-  | [StandardCard, StandardCard, StandardCard, StandardCard] // turn
-  | [StandardCard, StandardCard, StandardCard, StandardCard, StandardCard] // river
-;
 
 interface DecryptionKeyPair {
   alice?: DecryptionKey;
@@ -174,31 +165,6 @@ function useHole(
       return null;
     }
   }, [players, deck, decryptionKeyPairs, playerId]);
-}
-
-function useFireEventCallbacks(
-  fireEvent: (e: GameEvent<TexasHoldemEvent>) => void,
-  playerId?: string,
-) {
-  const firePublicEvent = useCallback((e: TexasHoldemEvent) => {
-    fireEvent({
-      type: 'public',
-      sender: playerId!,
-      data: e,
-    });
-  }, [fireEvent, playerId]);
-  const firePrivateEvent = useCallback((e: TexasHoldemEvent, recipient: string) => {
-    fireEvent({
-      type: 'private',
-      sender: playerId!,
-      recipient,
-      data: e,
-    });
-  }, [fireEvent, playerId]);
-  return {
-    firePublicEvent,
-    firePrivateEvent,
-  };
 }
 
 function useAlice(
@@ -303,7 +269,8 @@ export default function useTexasHoldem(props: {
     playerId,
     peerState,
     members,
-    fireEvent,
+    firePublicEvent,
+    firePrivateEvent,
     gameEventEmitter,
   } = useGameRoom<TexasHoldemEvent>({
     gameRoomId: props.gameRoomId,
@@ -326,11 +293,6 @@ export default function useTexasHoldem(props: {
 
   const community = useCommunity(players, deck, decryptionKeyPairs);
   const hole = useHole(players, deck, decryptionKeyPairs, playerId);
-
-  const {
-    firePublicEvent,
-    firePrivateEvent,
-  } = useFireEventCallbacks(fireEvent, playerId);
 
   const [mentalPokerParticipants, setMentalPokerParticipants] = useState<MentalPokerParticipants>();
   const [sharedPublicKey, setSharedPublicKey] = useState<PublicKey>();

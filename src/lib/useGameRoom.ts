@@ -140,11 +140,33 @@ export default function useGameRoom<T>(props: {
     }
   }, [membersOnHost, props.gameRoomId, sendMessageToAllGuests]);
 
+  const fireEvent = useMemo(() => {
+    return props.gameRoomId ? fireEventFromGuest : fireEventFromHost
+  }, [fireEventFromGuest, fireEventFromHost, props.gameRoomId]);
+
+  const firePublicEvent = useCallback((e: T) => {
+    fireEvent({
+      type: 'public',
+      sender: peerId!,
+      data: e,
+    });
+  }, [fireEvent, peerId]);
+
+  const firePrivateEvent = useCallback((e: T, recipient: string) => {
+    fireEvent({
+      type: 'private',
+      sender: peerId!,
+      recipient,
+      data: e,
+    });
+  }, [fireEvent, peerId]);
+
   return {
     gameEventEmitter,
     playerId: peerId,
     peerState,
     members: props.gameRoomId ? membersSyncedFromHost : membersOnHost,
-    fireEvent: props.gameRoomId ? fireEventFromGuest : fireEventFromHost,
+    firePublicEvent,
+    firePrivateEvent,
   };
 }

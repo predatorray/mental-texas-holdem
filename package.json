@@ -14,6 +14,7 @@
     "eventemitter3": "^5.0.1",
     "mental-poker-toolkit": "^1.0.1",
     "peerjs": "^1.5.4",
+    "phe": "^0.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",
