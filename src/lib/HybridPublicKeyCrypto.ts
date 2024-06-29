@@ -1,3 +1,5 @@
+import { concatBuffers } from "./utils";
+
 export interface HybridPublicKeyCryptoOptions {
   rsa?: {
     modulusLength?: number;
@@ -35,14 +37,12 @@ export async function encrypt(plaintext: ArrayBuffer, rsaOeapPubicKey: CryptoKey
 
   // data:                [aes-key.length] [rsa-encrypted-aes-key] [ iv ] [aes-encrypted-message]
   // data length (bytes): [      4       ] [         var         ] [ 12 ] [         var         ]
-  const keyLengthPayload = Buffer.from(new Uint32Array([encapsulatedAesKey.byteLength]).buffer);
-  const encapsulatedAesKeyPayload = Buffer.from(encapsulatedAesKey);
-  const aesEncryptedCipherPayload = Buffer.from(aesEncryptedCipher);
-  return Buffer.concat([
+  const keyLengthPayload = new Uint32Array([encapsulatedAesKey.byteLength]).buffer;
+  return concatBuffers([
     keyLengthPayload,
-    encapsulatedAesKeyPayload,
+    encapsulatedAesKey,
     iv,
-    aesEncryptedCipherPayload,
+    aesEncryptedCipher,
   ]);
 }
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import usePeer from "./usePeer";
 import { PeerOptions } from "peerjs";
-import { safeStringify, usePrevious } from "./utils";
+import { arrayBufferToHex, hexToArrayBuffer, safeStringify, usePrevious } from "./utils";
 import EventEmitter from "eventemitter3";
 import Deferred from "./Deferred";
+import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
 
 export interface PublicGameEvent<T> {
   type: 'public';
@@ -30,9 +31,17 @@ interface PublicKeyEvent {
   jwk: JsonWebKey;
 }
 
+interface EncryptedPrivateGameEvent {
+  type: '_encrypted';
+  sender: string;
+  recipient: string;
+  cipherHex: string;
+}
+
 type InternalEvent =
   | MembersChangedEvent
   | PublicKeyEvent
+  | EncryptedPrivateGameEvent
 ;
 
 export type GameRoomState = 'unready' | 'ready';
@@ -113,6 +122,16 @@ export default function useGameRoom<T>(props: {
               });
             }
             break;
+          case '_encrypted':
+            // decrypt using own private key and emit the decrypted PrivateGameEvent
+            decrypt(
+              hexToArrayBuffer(e.cipherHex),
+              rsaKeyPair!.privateKey,
+            ).then(decryptedData => {
+              const data = JSON.parse(new TextDecoder().decode(decryptedData));
+              emitter.emit('event', data, whom);
+            });
+            break;
         }
       } else {
         // broadcasting (host only)
@@ -124,6 +143,7 @@ export default function useGameRoom<T>(props: {
         switch (e.type) {
           case 'private':
             if (e.recipient !== peerId) {
+              console.warn(`Received a private message in plaintext (sender = ${whom}, recipient = ${e.recipient}).`);
               sendMessageToSingleGuest!(e.recipient, e);
             } else {
               emitter.emit('event', e.data, whom);
@@ -162,6 +182,20 @@ export default function useGameRoom<T>(props: {
               });
             }
             break;
+          case '_encrypted':
+            if (e.recipient === peerId) {
+              // decrypt using host's private key and emit the decrypted PrivateGameEvent
+              decrypt(
+                hexToArrayBuffer(e.cipherHex),
+                rsaKeyPair!.privateKey,
+              ).then(decryptedData => {
+                const data = JSON.parse(new TextDecoder().decode(decryptedData));
+                emitter.emit('event', data, whom);
+              });
+            } else {
+              sendMessageToSingleGuest!(e.recipient, e);
+            }
+            break;
         }
       }
     });
@@ -177,6 +211,8 @@ export default function useGameRoom<T>(props: {
     switch (e.type) {
       case 'private':
         if (e.recipient !== peerId) {
+          // when sending private messages from host,
+          // encryption is not required, since the connection is end-to-end with a relay.
           sendMessageToSingleGuest!(e.recipient, e);
         } else {
           gameEventEmitter.emit('event', e.data, peerId!); // echo
@@ -191,7 +227,25 @@ export default function useGameRoom<T>(props: {
 
   const fireEventFromGuest = useCallback((e: GameEvent<T>) => {
     console.debug(`Sending GameEvent: ${safeStringify(e)}.`);
-    sendMessageToHost!(e);
+    if (e.type === 'private') {
+      // when sending private message from guest,
+      // encryption is required, since host is acting as a relay, who can potentially see the plaintext
+      rsaPublicKeys.get(e.recipient)!.promise.then(recipientPublicKey => {
+        const dataAsBuffer = new TextEncoder().encode(JSON.stringify(e.data));
+        encrypt(dataAsBuffer, recipientPublicKey).then(encrypted => {
+          const encryptedHex = arrayBufferToHex(encrypted);
+          const encryptedEvent: EncryptedPrivateGameEvent = {
+            type: '_encrypted',
+            sender: e.sender,
+            recipient: e.recipient,
+            cipherHex: encryptedHex,
+          };
+          sendMessageToHost!(encryptedEvent);
+        });
+      });
+    } else {
+      sendMessageToHost!(e);
+    }
     gameEventEmitter.emit('event', e.data, peerId!); // echo
   }, [gameEventEmitter, peerId, sendMessageToHost]);
 
