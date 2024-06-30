@@ -28,6 +28,7 @@ interface MembersChangedEvent {
 
 interface PublicKeyEvent {
   type: '_publicKey';
+  sender: string;
   jwk: JsonWebKey;
 }
 
@@ -66,8 +67,18 @@ export default function useGameRoom<T>(props: {
     hostId: props.gameRoomId,
     peerOptions: props.peerOptions,
   });
-
-  const [rsaKeyPair, setRsaKeyPair] = useState<CryptoKeyPair>();
+  const rsaKeyPairPromise = useMemo(() => {
+    return window.crypto.subtle.generateKey(
+      {
+        name: 'RSA-OAEP',
+        modulusLength: 4096,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256',
+      },
+      true,
+      ['encrypt', 'decrypt'],
+    );
+  }, []);
   const [rsaPublicKeys, setRsaPublicKeys] = useState<Map<string, Deferred<CryptoKey>>>(new Map());
 
   const gameEventEmitter = useMemo(() => {
@@ -75,13 +86,14 @@ export default function useGameRoom<T>(props: {
 
     peerEventEmitter.off('data');
     peerEventEmitter.on('data', (whom, e: GameEvent<T> | InternalEvent) => {
+      if (!e || !e.type) {
+        console.error('[GameRoom] missing event or type');
+        return;
+      }
+      console.info(`[GameRoom] Received GameEvent ${e.type} from ${whom}.`);
+      console.debug(e);
       if (props.gameRoomId) {
-        // receiving (guest only)
-        console.debug(`Received GameEvent: ${safeStringify(e)}`);
-        if (!e || !e.type) {
-          console.error('missing event or type');
-          return;
-        }
+        // guest mode
         switch (e.type) {
           case 'private':
             if (e.recipient === peerId) {
@@ -105,18 +117,18 @@ export default function useGameRoom<T>(props: {
               false,
               ['encrypt'],
             );
-            const rsaPublicKeyDeferred = rsaPublicKeys.get(whom);
+            const rsaPublicKeyDeferred = rsaPublicKeys.get(e.sender);
             if (rsaPublicKeyDeferred) {
               rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
             } else {
               // in case _publicKey event arrives before _members
               setRsaPublicKeys(curr => {
-                if (curr.has(whom)) {
+                if (curr.has(e.sender)) {
                   return curr;
                 }
                 const next = new Map(curr);
                 const deferred = new Deferred<CryptoKey>();
-                next.set(whom, deferred);
+                next.set(e.sender, deferred);
                 deferred.resolve(rsaPulbicKeyPromise);
                 return next;
               });
@@ -124,26 +136,23 @@ export default function useGameRoom<T>(props: {
             break;
           case '_encrypted':
             // decrypt using own private key and emit the decrypted PrivateGameEvent
-            decrypt(
-              hexToArrayBuffer(e.cipherHex),
-              rsaKeyPair!.privateKey,
-            ).then(decryptedData => {
-              const data = JSON.parse(new TextDecoder().decode(decryptedData));
-              emitter.emit('event', data, whom);
+            rsaKeyPairPromise.then(rsaKeyPair => {
+              decrypt(
+                hexToArrayBuffer(e.cipherHex),
+                rsaKeyPair!.privateKey,
+              ).then(decryptedData => {
+                const data = JSON.parse(new TextDecoder().decode(decryptedData));
+                emitter.emit('event', data, whom);
+              });
             });
             break;
         }
       } else {
-        // broadcasting (host only)
-        console.debug(`Received GameEvent: ${safeStringify(e)}`);
-        if (!e || !e.type) {
-          console.error('missing event or type');
-          return;
-        }
+        // host mode
         switch (e.type) {
           case 'private':
             if (e.recipient !== peerId) {
-              console.warn(`Received a private message in plaintext (sender = ${whom}, recipient = ${e.recipient}).`);
+              console.warn(`[GameRoom] Received a private message in plaintext (sender = ${whom}, recipient = ${e.recipient}).`);
               sendMessageToSingleGuest!(e.recipient, e);
             } else {
               emitter.emit('event', e.data, whom);
@@ -165,18 +174,18 @@ export default function useGameRoom<T>(props: {
               false,
               ['encrypt'],
             );
-            const rsaPublicKeyDeferred = rsaPublicKeys.get(whom);
+            const rsaPublicKeyDeferred = rsaPublicKeys.get(e.sender);
             if (rsaPublicKeyDeferred) {
               rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
             } else {
               // in case _publicKey event arrives before _members
               setRsaPublicKeys(curr => {
-                if (curr.has(whom)) {
+                if (curr.has(e.sender)) {
                   return curr;
                 }
                 const next = new Map(curr);
                 const deferred = new Deferred<CryptoKey>();
-                next.set(whom, deferred);
+                next.set(e.sender, deferred);
                 deferred.resolve(rsaPulbicKeyPromise);
                 return next;
               });
@@ -185,12 +194,14 @@ export default function useGameRoom<T>(props: {
           case '_encrypted':
             if (e.recipient === peerId) {
               // decrypt using host's private key and emit the decrypted PrivateGameEvent
-              decrypt(
-                hexToArrayBuffer(e.cipherHex),
-                rsaKeyPair!.privateKey,
-              ).then(decryptedData => {
-                const data = JSON.parse(new TextDecoder().decode(decryptedData));
-                emitter.emit('event', data, whom);
+              rsaKeyPairPromise.then(rsaKeyPair => {
+                decrypt(
+                  hexToArrayBuffer(e.cipherHex),
+                  rsaKeyPair!.privateKey,
+                ).then(decryptedData => {
+                  const data = JSON.parse(new TextDecoder().decode(decryptedData));
+                  emitter.emit('event', data, whom);
+                });
               });
             } else {
               sendMessageToSingleGuest!(e.recipient, e);
@@ -200,14 +211,15 @@ export default function useGameRoom<T>(props: {
       }
     });
     return emitter;
-  }, [peerEventEmitter, peerId, props.gameRoomId, rsaPublicKeys, sendMessageToAllGuests, sendMessageToSingleGuest]);
+  }, [peerEventEmitter, peerId, props.gameRoomId, rsaKeyPairPromise, rsaPublicKeys, sendMessageToAllGuests, sendMessageToSingleGuest]);
   const previousGameEventEmitter = usePrevious(gameEventEmitter);
   if (previousGameEventEmitter && previousGameEventEmitter !== gameEventEmitter) {
     previousGameEventEmitter.removeAllListeners();
   }
 
   const fireEventFromHost = useCallback((e: GameEvent<T>) => {
-    console.debug(`Sending GameEvent: ${safeStringify(e)}.`);
+    console.info(`[GameRoom] Sending GameEvent ${e.type}.`);
+    console.debug(e);
     switch (e.type) {
       case 'private':
         if (e.recipient !== peerId) {
@@ -226,7 +238,8 @@ export default function useGameRoom<T>(props: {
   }, [gameEventEmitter, peerId, sendMessageToAllGuests, sendMessageToSingleGuest]);
 
   const fireEventFromGuest = useCallback((e: GameEvent<T>) => {
-    console.debug(`Sending GameEvent: ${safeStringify(e)}.`);
+    console.info(`[GameRoom] Sending GameEvent ${e.type}.`);
+    console.debug(e);
     if (e.type === 'private') {
       // when sending private message from guest,
       // encryption is required, since host is acting as a relay, who can potentially see the plaintext
@@ -247,7 +260,7 @@ export default function useGameRoom<T>(props: {
       sendMessageToHost!(e);
     }
     gameEventEmitter.emit('event', e.data, peerId!); // echo
-  }, [gameEventEmitter, peerId, sendMessageToHost]);
+  }, [gameEventEmitter, peerId, rsaPublicKeys, sendMessageToHost]);
 
   // members
   const membersOnHost: string[] = useMemo(() => peerId ? [peerId, ...(guests || [])] : [], [peerId, guests]);
@@ -297,43 +310,26 @@ export default function useGameRoom<T>(props: {
       return next;
     });
   }, [membersAdded, membersRemoved]);
-  useEffect(() => {
-    window.crypto.subtle.generateKey(
-      {
-        name: 'RSA-OAEP',
-        modulusLength: 4096,
-        publicExponent: new Uint8Array([1, 0, 1]),
-        hash: 'SHA-256',
-      },
-      true,
-      ['encrypt', 'decrypt'],
-    ).then(keyPair => {
-      setRsaKeyPair(keyPair);
-    });
-  }, []);
   // publish public key
   useEffect(() => {
-    if (!rsaKeyPair) {
-      return;
-    }
-
-    window.crypto.subtle.exportKey(
-      'jwk',
-      rsaKeyPair.publicKey,
-    ).then(jwk => {
+    (async () => {
+      const rsaKeyPair = await rsaKeyPairPromise;
+      const jwk = await window.crypto.subtle.exportKey(
+        'jwk',
+        rsaKeyPair.publicKey,
+      );
       const publicKeyEvent: PublicKeyEvent = {
         type: '_publicKey',
+        sender: peerId!,
         jwk,
       };
-      return publicKeyEvent;
-    }).then(publicKeyEvent => {
       if (!props.gameRoomId) {
         sendMessageToAllGuests!(publicKeyEvent);
       } else {
         sendMessageToHost!(publicKeyEvent);
       }
-    });
-  }, [props.gameRoomId, rsaKeyPair, sendMessageToAllGuests, sendMessageToHost]);
+    })();
+  }, [peerId, props.gameRoomId, rsaKeyPairPromise, sendMessageToAllGuests, sendMessageToHost]);
 
   const fireEvent = useMemo(() => {
     return props.gameRoomId ? fireEventFromGuest : fireEventFromHost

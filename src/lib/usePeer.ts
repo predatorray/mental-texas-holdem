@@ -32,7 +32,7 @@ export default function usePeer(props: {
   const openedPeerPromise = useMemo(() => {
     return new Promise<Peer>(resolve => {
       peer.on('open', peerId => {
-        console.info(`Connected to the PeerJS server. (peerId = ${peerId}).`);
+        console.info(`[Peer] Connected to the PeerJS server. (peerId = ${peerId}).`);
         setPeerId(peerId);
         setPeerState('opened');
         resolve(peer);
@@ -47,10 +47,10 @@ export default function usePeer(props: {
         resolve(null);
         return;
       }
-      console.info(`Connecting to the remote peer (peerId = ${props.hostId})`);
+      console.info(`[Peer] Connecting to the remote peer (${props.hostId})`);
       const hostConn = openedPeer.connect(props.hostId, PEER_CONNECT_OPTIONS);
       hostConn.on('open', () => {
-        console.info(`Connected to the remote peer (peerId = ${props.hostId}) successfully.`);
+        console.info(`[Peer] Connected to the remote peer (${props.hostId}) successfully.`);
         resolve(hostConn);
         return;
       });
@@ -59,7 +59,7 @@ export default function usePeer(props: {
         return;
       });
       hostConn.on('close', () => {
-        console.info(`The remote connection is closed (peerId = ${props.hostId}).`);
+        console.info(`[Peer] The remote connection is closed (${props.hostId}).`);
       });
       return hostConn;
     }));
@@ -67,7 +67,8 @@ export default function usePeer(props: {
 
   const sendMessageToHost = useCallback(async (data: any) => {
     const hostConnection = await hostConnectionPromise;
-    console.debug(`Sending message '${safeStringify(data)}' to the host (peerId = ${props.hostId}).`)
+    console.info(`[Peer] Sending a message to the host (peerId = ${props.hostId}).`)
+    console.debug(data);
     hostConnection!.send(data);
   }, [hostConnectionPromise, props.hostId]);
 
@@ -77,7 +78,7 @@ export default function usePeer(props: {
     peer.on('connection', (conn) => {
       const openedConnPromise = new Promise<DataConnection>((resolve, reject) => {
         conn.on('open', () => {
-          console.info(`Established connection with the peer (peerId = ${conn.peer}).`);
+          console.info(`[Peer] Established connection with the peer (peerId = ${conn.peer}).`);
           resolve(conn);
         }); 
         conn.on('error', error => {
@@ -90,7 +91,7 @@ export default function usePeer(props: {
         return next;
       });
       conn.on('close', () => {
-        console.info(`The client connection is closed. (peerId = ${conn.peer}).`);
+        console.info(`[Peer] The client connection is closed. (peerId = ${conn.peer}).`);
         setGuestConnectionPromises(curr => {
           const next = new Map(curr);
           next.delete(conn.peer);
@@ -106,10 +107,12 @@ export default function usePeer(props: {
   const sendMessageToSingleGuest = useCallback(async (guestPeerId: string, data: any) => {
     const guestConn = guestConnectionPromises.get(guestPeerId);
     if (!guestConn) {
-      console.warn(`The message '${safeStringify(data)}' is dropped because the connection (peerId = ${guestPeerId}) is not found.`);
+      console.warn(`[Peer] The message is dropped because the connection (peerId = ${guestPeerId}) is not found.`);
+      console.debug(data);
       return;
     }
-    console.debug(`Sending message '${safeStringify(data)}' to the client (peerId = ${guestPeerId}).`);
+    console.info(`[Peer] Sending a message to the client (peerId = ${guestPeerId}).`);
+    console.debug(data);
     (await guestConn).send(data);
   }, [guestConnectionPromises]);
 
@@ -118,14 +121,16 @@ export default function usePeer(props: {
       return;
     }
     if (exceptPeerId) {
-      console.debug(`Sending message '${safeStringify(data)}' to all the ${guestConnectionPromises.size} clients except the peer (peerId = ${exceptPeerId}).`);
+      console.info(`[Peer] Sending a message to all the ${guestConnectionPromises.size} clients except the peer (peerId = ${exceptPeerId}).`);
     } else {
-      console.debug(`Sending message '${safeStringify(data)}' to all the ${guestConnectionPromises.size} clients.`);
+      console.info(`[Peer] Sending a message to all the ${guestConnectionPromises.size} clients.`);
     }
+    console.debug(data);
     for (const [peerId, guestConnectionPromise] of Array.from(guestConnectionPromises.entries())) {
       const guestConnection = await guestConnectionPromise;
       if (guestConnection!.peer !== exceptPeerId) {
-        console.debug(`Sending message '${safeStringify(data)}' to the client (peerId = ${peerId}).`);
+        console.info(`[Peer] Sending a message to the client (peerId = ${peerId}):`);
+        console.debug(data);
         await guestConnection!.send(data);
       }
     }
@@ -134,7 +139,8 @@ export default function usePeer(props: {
   const guests = useMemo(() => {
     const guests = Array.from(guestConnectionPromises.keys());
     if (!props.hostId) {
-      console.info(`Guest list was updated: ${safeStringify(guests)}`);
+      console.info('[Peer] Guest list was updated.');
+      console.dir(guests);
     }
     return guests;
   }, [guestConnectionPromises, props.hostId]);
