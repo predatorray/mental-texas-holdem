@@ -10,7 +10,7 @@ export type Flop = [StandardCard, StandardCard, StandardCard];
 export type Turn = [StandardCard, StandardCard, StandardCard, StandardCard];
 export type River = [StandardCard, StandardCard, StandardCard, StandardCard, StandardCard];
 
-export type Community =
+export type Board =
   | Preflop
   | Flop
   | Turn

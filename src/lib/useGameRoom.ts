@@ -47,7 +47,7 @@ type InternalEvent =
 
 export type GameRoomState = 'unready' | 'ready';
 
-type GameRoomEvents<T> = {
+export type GameRoomEvents<T> = {
   event: (e: T, fromWhom: string) => void;
 }
 

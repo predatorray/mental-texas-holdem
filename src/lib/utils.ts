@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function safeStringify(object: any): string {
   return JSON.stringify(object, (key, value) =>
@@ -66,3 +66,76 @@ export function usePrevious<T>(value: T): T | undefined {
   });
   return ref.current;
 };
+
+export function useSet<T>(): [
+  Set<T>,
+  (value: T) => void,
+  (value: T) => void,
+] {
+  const [set, setSet] = useState<Set<T>>(new Set());
+  const add = useCallback((value: T) => {
+    setSet(curr => {
+      if (curr.has(value)) {
+        return curr;
+      }
+      const next = new Set(curr);
+      next.add(value);
+      return next;
+    });
+  }, [setSet]);
+  const remove = useCallback((value: T) => {
+    setSet(curr => {
+      if (!curr.has(value)) {
+        return curr;
+      }
+      const next = new Set(curr);
+      next.delete(value);
+      return next;
+    });
+  }, [setSet]);
+  return [
+    set,
+    add,
+    remove,
+  ];
+}
+
+export function useMap<K, V>(): [
+  Map<K, V>,
+  (k: K, v: V) => void,
+  (k: K) => void,
+  () => void,
+  React.Dispatch<React.SetStateAction<Map<K, V>>>,
+] {
+  const [map, setMap] = useState<Map<K, V>>(new Map());
+  const set = useCallback((k: K, v: V) => {
+    setMap(curr => {
+      if (curr.get(k) === v) {
+        return curr;
+      }
+      const next = new Map(curr);
+      next.set(k, v);
+      return next;
+    })
+  }, [setMap]);
+  const remove = useCallback((k: K) => {
+    setMap(curr => {
+      if (!curr.has(k)) {
+        return curr;
+      }
+      const next = new Map(curr);
+      next.delete(k);
+      return next;
+    })
+  }, [setMap]);
+  const removeAll = useCallback(() => {
+    setMap(new Map());
+  }, [setMap]);
+  return [
+    map,
+    set,
+    remove,
+    removeAll,
+    setMap,
+  ];
+}
