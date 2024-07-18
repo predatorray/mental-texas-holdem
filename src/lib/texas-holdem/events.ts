@@ -40,15 +40,14 @@ export interface DecryptCardEvent {
   decryptionKey: { d: string; n: string };
 }
 
-export interface ActionEvent {
+export type ActionEvent = {
   type: 'action';
-  bet: {
-    action: 'fold';
-  } | {
-    action: 'call';
-    amount: number;
-  };
-}
+} & ({
+  action: 'fold';
+} | {
+  action: 'bet';
+  amount: number;
+});
 
 export type TexasHoldemEvent =
   | GameStartEvent

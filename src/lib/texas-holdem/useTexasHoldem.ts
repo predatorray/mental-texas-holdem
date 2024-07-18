@@ -2,13 +2,14 @@ import { PeerOptions } from "peerjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DecryptionKey, EncodedDeck, Player, PublicKey, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
 import useGameRoom from "../useGameRoom";
-import { useMap, useSet } from "../utils";
 import { useDecryptionKeyPair } from "./DecryptionKeyPair";
 import useBoard from "./useBoard";
 import useHole from "./useHole";
 import { useMentalPokerParticipants } from "./MentalPokerParticipants";
 import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
 import { StringEncodedDeck, TexasHoldemEvent, GameStartEvent, DeckStep1Event, DeckStep2Event, DeckStep3Event, DeckFinalizedEvent, DecryptCardEvent, ActionEvent } from "./events";
+import useBankrollsAndBet from "./useBankrollsAndBet";
+import useWhoseTurn from "./useWhoseTurn";
 
 function toStringEncodedDeck(deck: EncodedDeck): StringEncodedDeck {
   return deck.cards.map(i => i.toString());
@@ -47,7 +48,12 @@ export default function useTexasHoldem(props: {
 
   const texasHoldemEventEmitter = useTexasHoldemEventEmitter(gameEventEmitter);
 
-  const board = useBoard(players, deck, decryptionKeyPairs);
+  const {
+    board,
+    stage: boardStage,
+    isDealingCards,
+    dealingCards,
+  } = useBoard(players, deck, decryptionKeyPairs);
   const hole = useHole(players, deck, decryptionKeyPairs, playerId);
 
   const {
@@ -148,7 +154,7 @@ export default function useTexasHoldem(props: {
     const handler = (e: DeckFinalizedEvent) => {
       setDeck(toBigIntEncodedDeck(e.deck));
       // deal cards if Alice or Bob
-      const dealCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+      const dealHoleCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
         let cardOffset = 5;
         for (const playerId of players!) {
           const cardOffsets: [number, number] = [
@@ -180,8 +186,8 @@ export default function useTexasHoldem(props: {
           }, playerId);
         }
       }
-      handleIfAlice(alice => dealCards(alice, 'alice'));
-      handleIfBob(bob => dealCards(bob, 'bob'));
+      handleIfAlice(alice => dealHoleCards(alice, 'alice'));
+      handleIfBob(bob => dealHoleCards(bob, 'bob'));
     };
     texasHoldemEventEmitter.on('deck/finalized', handler);
     return () => {
@@ -208,60 +214,132 @@ export default function useTexasHoldem(props: {
     };
   }, [setAliceDecryptionKey, setBobDecryptionKey, texasHoldemEventEmitter]);
 
-  const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
-  const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
-  const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
-  const [betsPerPlayer] = useMap<string, number>(); // TODO sb and bb
-  const [bankrolls] = useMap<string, number>();
-  const [allInPlayers, addAllInPlayers, removeAllInPlayers] = useSet<string>();
-  const [lastPlayerWhoRaised, setLastPlayerWhoRaised] = useState<string>();
-  const betOrder = useMemo(() => {
-    if (!players) {
-      return null; // no one's turn
-    }
-    const raisedPlayerOffset = lastPlayerWhoRaised
-      ? players!.findIndex(p => p === lastPlayerWhoRaised)
-      : 2 % players.length; // player next to bb
-    return [
-      ...players.slice(raisedPlayerOffset),
-      ...players.slice(0, raisedPlayerOffset),
-    ];
-  }, [lastPlayerWhoRaised, players]);
-  const whoseTurn = useMemo(() => {
-    if (!betOrder) {
-      return null; // no one's turn
-    }
-    let smallestBet: number | undefined;
-    for (const player of betOrder) {
-      if (allInPlayers.has(player)) {
-        continue;
-      }
-      const bet = betsPerPlayer.get(player);
-      if (!bet) {
-        return player;
-      }
-      if (!smallestBet) {
-        smallestBet = bet;
-        continue;
-      }
-      if (bet < smallestBet) {
-        return player;
-      }
-    }
-    return null;
-  }, [allInPlayers, betOrder, betsPerPlayer]);
+  const {
+    smallBlind,
+    bigBlind,
+    button,
+    bankrolls,
+    betsPerPlayer,
+    allInPlayers,
+    foldedPlayers,
+    calledPlayers,
+    bet,
+    fold,
+  } = useBankrollsAndBet(100, boardStage, players); // TODO read 100 from settings
 
-  // bet
+  const {
+    whoseTurn,
+    nextPlayersTurn,
+    clearWhoseTurn,
+  } = useWhoseTurn(allInPlayers, foldedPlayers, calledPlayers, boardStage, players);
+
+  // action
   useEffect(() => {
-    const handler = (e: ActionEvent) => {
-      // TODO
-      ;
+    const handler = (e: ActionEvent, whom: string) => {
+      switch (e.action) {
+        case 'bet':
+          if (bet(whom, e.amount)) {
+            nextPlayersTurn();
+          }
+          break;
+        case 'fold':
+          fold(whom);
+          nextPlayersTurn();
+          break;
+      }
     };
     texasHoldemEventEmitter.on('action', handler);
     return () => {
       texasHoldemEventEmitter.off('action', handler);
     };
-  }, [texasHoldemEventEmitter]);
+  }, [playerId, fold, bet, texasHoldemEventEmitter, nextPlayersTurn]);
+
+  useEffect(() => {
+    // if everyone is either called, all-in or folded, flop
+    if (!players || !boardStage) {
+      return;
+    }
+    for (const player of players) {
+      if (!calledPlayers.has(player) && !allInPlayers.has(player) && !foldedPlayers.has(player)) {
+        return;
+      }
+    }
+    // and no one needs to do any action
+    if (whoseTurn) {
+      return;
+    }
+
+    if (isDealingCards) {
+      return;
+    }
+
+    clearWhoseTurn();
+    // deal cards
+    switch (boardStage) {
+      case 'Preflop': // pre-flop to flop
+        dealingCards();
+        const showFlopCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+          const flopCardOffsets = [0, 1, 2];
+          console.info(`Showing cards [ ${flopCardOffsets[0]}, ${flopCardOffsets[1]}, ${flopCardOffsets[2]} ] to all the players.`);
+          for (const flopCardOffset of flopCardOffsets) {
+            const dk = player.getIndividualKey(flopCardOffset).decryptionKey;
+            firePublicEvent({
+              type: 'card/decrypt',
+              cardOffset: flopCardOffset,
+              aliceOrBob,
+              decryptionKey: {
+                d: dk.d.toString(),
+                n: dk.n.toString(),
+              },
+            });
+          }
+        };
+        handleIfAlice(alice => showFlopCards(alice, 'alice'));
+        handleIfBob(bob => showFlopCards(bob, 'bob'));
+        break;
+      case 'Flop': // flop to turn
+        dealingCards();
+        const showTurnCard = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+          const turnCardOffset = 3;
+          console.info(`Showing card [ ${turnCardOffset} ] to all the players.`);
+          const dk = player.getIndividualKey(turnCardOffset).decryptionKey;
+          firePublicEvent({
+            type: 'card/decrypt',
+            cardOffset: turnCardOffset,
+            aliceOrBob,
+            decryptionKey: {
+              d: dk.d.toString(),
+              n: dk.n.toString(),
+            },
+          });
+        };
+        handleIfAlice(alice => showTurnCard(alice, 'alice'));
+        handleIfBob(bob => showTurnCard(bob, 'bob'));
+        break;
+      case 'Turn': // turn to river
+        dealingCards();
+        const showRiverCard = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+          const riverCardOffset = 4;
+          console.info(`Showing card [ ${riverCardOffset} ] to all the players.`);
+          const dk = player.getIndividualKey(riverCardOffset).decryptionKey;
+          firePublicEvent({
+            type: 'card/decrypt',
+            cardOffset: riverCardOffset,
+            aliceOrBob,
+            decryptionKey: {
+              d: dk.d.toString(),
+              n: dk.n.toString(),
+            },
+          });
+        };
+        handleIfAlice(alice => showRiverCard(alice, 'alice'));
+        handleIfBob(bob => showRiverCard(bob, 'bob'));
+        break;
+      case 'River': // show cards
+        console.info('Show cards');
+        break;
+    }
+  }, [allInPlayers, calledPlayers, foldedPlayers, firePublicEvent, handleIfAlice, handleIfBob, players, boardStage, whoseTurn, clearWhoseTurn, isDealingCards, dealingCards]);
 
   const startGame = useCallback(() => {
     setPlayers(curr => {
@@ -278,6 +356,21 @@ export default function useTexasHoldem(props: {
     });
   }, [firePublicEvent, members]);
 
+  const fireBet = useCallback((amount: number) => {
+    firePublicEvent({
+      type: 'action',
+      action: 'bet',
+      amount,
+    });
+  }, [firePublicEvent]);
+
+  const fireFold = useCallback(() => {
+    firePublicEvent({
+      type: 'action',
+      action: 'fold',
+    });
+  }, [firePublicEvent]);
+
   return {
     peerState,
     playerId,
@@ -286,10 +379,16 @@ export default function useTexasHoldem(props: {
     pot,
     hole,
     board,
-    startGame,
     whoseTurn,
     smallBlind,
     bigBlind,
     button,
+    startGame,
+    bankrolls,
+    betsPerPlayer,
+    actions: {
+      fireBet,
+      fireFold,
+    },
   };
 }

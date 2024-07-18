@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 import './App.css';
 
@@ -17,13 +17,17 @@ function App() {
     pot,
     hole,
     board,
-    startGame,
     whoseTurn,
     smallBlind,
     bigBlind,
+    startGame,
+    bankrolls,
+    betsPerPlayer,
+    actions,
   } = useTexasHoldem({
     gameRoomId: gameRoomId || undefined,
   });
+  const [betAmount, setBetAmount] = useState<string>('0');
   return (
     <div className="App">
       <div className="community-cards">
@@ -54,8 +58,11 @@ function App() {
         {
           playerId && whoseTurn === playerId && (
             <div>
-              <button>call</button>
-              <button>fold</button>
+              <input type="text" value={betAmount} onChange={(e) => {
+                setBetAmount(e.target.value);
+              }}></input>
+              <button onClick={() => actions.fireBet(Number(betAmount))}>call</button>
+              <button onClick={() => actions.fireFold()}>fold</button>
             </div>
           )
         }
@@ -67,6 +74,16 @@ function App() {
         {
           playerId && bigBlind === playerId && (
             <div>BB</div>
+          )
+        }
+        {
+          bankrolls && playerId && bankrolls.get(playerId) && (
+            <div>Bankroll: ${bankrolls.get(playerId)}</div>
+          )
+        }
+        {
+          betsPerPlayer && playerId && betsPerPlayer.get(playerId) && (
+            <div>Bet: ${betsPerPlayer.get(playerId)}</div>
           )
         }
         {

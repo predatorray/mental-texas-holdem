@@ -24,7 +24,7 @@ export function useDecryptionKeyPair() {
   const setBobDecryptionKey = useCallback((decryptionKey: DecryptionKey, cardOffset: number) => {
     setDecryptionKeyPairs(curr => {
       const newKeyPairs = curr ? [...curr] : Array(CARDS).fill({});
-      console.info(`The decryption key of Alice is available for the card [${cardOffset}]`);
+      console.info(`The decryption key of Bob is available for the card [${cardOffset}]`);
       newKeyPairs[cardOffset] = {
         ...newKeyPairs[cardOffset],
         bob: decryptionKey,

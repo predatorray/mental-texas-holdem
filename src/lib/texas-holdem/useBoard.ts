@@ -1,14 +1,21 @@
 import { EncodedDeck, decodeStandardCard } from "mental-poker-toolkit";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Board } from "../rules";
 import DecryptionKeyPair from "./DecryptionKeyPair";
+
+export type BoardStage =
+  | 'Preflop'
+  | 'Flop'
+  | 'Turn'
+  | 'River'
+;
 
 export default function useBoard(
   players?: string[],
   deck?: EncodedDeck,
   decryptionKeyPairs?: DecryptionKeyPair[],
-): Board | null {
-  return useMemo(() => {
+) {
+  const board: Board | null = useMemo(() => {
     // [0] - [4]
     if (!players || !deck || !decryptionKeyPairs) {
       return null;
@@ -49,4 +56,59 @@ export default function useBoard(
     }
     return [];
   }, [players, deck, decryptionKeyPairs]);
+  
+  const stage: BoardStage | null = useMemo(() => {
+    if (!board) {
+      return null;
+    }
+    switch (board.length) {
+      case 0:
+        return 'Preflop';
+      case 3:
+        return 'Flop';
+      case 4:
+        return 'Turn';
+      case 5:
+        return 'River';
+    }
+  }, [board]);
+
+  const [isDealingCards, setDealingCards] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!stage || !decryptionKeyPairs || !isDealingCards) {
+      return;
+    }
+    switch (stage) {
+      case 'Flop':
+        if (decryptionKeyPairs[0]?.alice && decryptionKeyPairs[0]?.bob
+          && decryptionKeyPairs[1]?.alice && decryptionKeyPairs[1]?.bob
+          && decryptionKeyPairs[2]?.alice && decryptionKeyPairs[2]?.bob
+        ) {
+          setDealingCards(false);
+        }
+        break;
+      case 'Turn':
+        if (decryptionKeyPairs[3]?.alice && decryptionKeyPairs[3]?.bob) {
+          setDealingCards(false);
+        }
+        break;
+      case 'River':
+        if (decryptionKeyPairs[4]?.alice && decryptionKeyPairs[4]?.bob) {
+          setDealingCards(false);
+        }
+        break;
+    }
+  }, [isDealingCards, decryptionKeyPairs, stage]);
+
+  const dealingCards = useCallback(() => {
+    setDealingCards(true);
+  }, []);
+
+  return {
+    board,
+    stage,
+    isDealingCards,
+    dealingCards,
+  };
 }
