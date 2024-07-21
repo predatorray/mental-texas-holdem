@@ -34,6 +34,13 @@ export default function useWhoseTurn(
     }
   }, [allInPlayers, foldedPlayers, boardStage, players, whoseTurnOffset]);
 
+  useEffect(() => {
+    if (boardStage === undefined || boardStage === 'Preflop') {
+      return;
+    }
+    setWhoseTurnOffset(undefined);
+  }, [boardStage]);
+
   const everyOneIsCalledAllInOrFolded = useMemo(() => {
     if (!players) {
       return true;
