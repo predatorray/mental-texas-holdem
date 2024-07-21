@@ -79,13 +79,8 @@ export default function useWhoseTurn(
     });
   }, [allInPlayers, foldedPlayers, players]);
 
-  const clearWhoseTurn = useCallback(() => {
-    setWhoseTurnOffset(undefined);
-  }, []);
-
   return {
     whoseTurn,
     nextPlayersTurn,
-    clearWhoseTurn,
   };
 }

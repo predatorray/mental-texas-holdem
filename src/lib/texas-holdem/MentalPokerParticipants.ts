@@ -25,21 +25,15 @@ function useAlice(
         bits: 32, // TODO read from settings
       });
       aliceDeferred.resolve(alicePromise);
-      aliceDeferred.promise.then(() => {
-        console.debug('Alice is ready');
-      });
     } else {
       aliceDeferred.resolve(null);
     }
   }, [aliceDeferred, mentalPokerParticipants, playerId]);
   const handleIfAlice = useCallback((handler: (alice: Player) => void) => {
     aliceDeferred.promise.then(alice => {
-      console.debug('aliceDeferred is ready');
       if (!alice) {
-        console.debug('skipped since not alice');
         return;
       }
-      console.debug('handling alice');
       handler(alice);
     });
   }, [aliceDeferred]);
@@ -56,12 +50,9 @@ function useBob(
   const bobDeferred: Deferred<Player | null> = useMemo(() => new Deferred(), []);
   const handleIfBob = useCallback((handler: (bob: Player) => void) => {
     bobDeferred.promise.then(bob => {
-      console.debug('bobDeferred is ready');
       if (!bob) {
-        console.debug('skipped since not bob');
         return;
       }
-      console.debug('handling bob');
       handler(bob);
     });
   }, [bobDeferred]);
@@ -82,9 +73,6 @@ function useBob(
         bits: 32, // TODO read from settings
       });
       bobDeferred.resolve(bobPromise);
-      bobDeferred.promise.then(() => {
-        console.debug('Bob is ready');
-      });
     } else {
       bobDeferred.resolve(null);
     }

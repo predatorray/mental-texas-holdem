@@ -4,7 +4,6 @@ import './App.css';
 
 import CardImage from './components/CardImage';
 import useTexasHoldem from './lib/texas-holdem/useTexasHoldem';
-import { useSearchParams } from 'react-router-dom';
 
 function App() {
   const params = new URL(document.location.toString()).searchParams;
@@ -13,7 +12,6 @@ function App() {
     peerState,
     playerId,
     players,
-    amountsPerPlayer,
     pot,
     hole,
     board,
