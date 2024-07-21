@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function safeStringify(object: any): string {
-  return JSON.stringify(object, (key, value) =>
-    typeof value === 'bigint'
-        ? value.toString()
-        : value
-  );
-}
-
 export function concatBuffers(buffers: Array<ArrayBuffer>): ArrayBuffer {
   const totalBytes = buffers.map(b => b.byteLength).reduce((a, b) => a + b);
   const concatBuffer = new Uint8Array(totalBytes);

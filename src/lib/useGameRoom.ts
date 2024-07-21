@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import usePeer from "./usePeer";
-import { PeerOptions } from "peerjs";
-import { arrayBufferToHex, hexToArrayBuffer, safeStringify, usePrevious } from "./utils";
+import usePeer, { PeerServerOptions } from "./usePeer";
+import { arrayBufferToHex, hexToArrayBuffer, usePrevious } from "./utils";
 import EventEmitter from "eventemitter3";
 import Deferred from "./Deferred";
 import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
@@ -53,8 +52,7 @@ export type GameRoomEvents<T> = {
 
 export default function useGameRoom<T>(props: {
   gameRoomId?: string;
-  peerOptions?: PeerOptions;
-}) {
+} & PeerServerOptions) {
   const {
     peerId,
     peerState,
@@ -65,7 +63,7 @@ export default function useGameRoom<T>(props: {
     peerEventEmitter,
   } = usePeer({
     hostId: props.gameRoomId,
-    peerOptions: props.peerOptions,
+    ...props,
   });
   const rsaKeyPairPromise = useMemo(() => {
     return window.crypto.subtle.generateKey(

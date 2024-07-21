@@ -1,7 +1,7 @@
 import { EventEmitter } from "eventemitter3";
-import Peer, { DataConnection, PeerOptions } from "peerjs";
+import Peer, { DataConnection } from "peerjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { safeStringify, usePrevious } from "./utils";
+import { usePrevious } from "./utils";
 
 const PEER_CONNECT_OPTIONS = {
   reliable: true,
@@ -14,13 +14,37 @@ export type PeerEvents = {
   data: (peerId: string, data: any) => void;
 }
 
+export interface PeerServerOptions {
+  host?: string;
+  port?: number;
+  path?: string;
+  key?: string;
+  token?: string;
+  secure?: boolean;
+}
+
 export default function usePeer(props: {
   hostId?: string;
-  peerOptions?: PeerOptions;
-}) {
+} & PeerServerOptions) {
   const peer = useMemo(() => {
-    return props.peerOptions ? new Peer(props.peerOptions) : new Peer();
-  }, [props.peerOptions]);
+    return (props.host || props.port || props.path || props.key || props.token || props.secure)
+      ? new Peer({
+        host: props.host,
+        port: props.port,
+        path: props.path,
+        key: props.key,
+        token: props.token,
+        secure: props.secure,
+      })
+      : new Peer();
+  }, [
+    props.host,
+    props.port,
+    props.path,
+    props.key,
+    props.token,
+    props.secure,
+  ]);
 
   const previousPeer = usePrevious(peer);
   if (previousPeer && previousPeer !== peer) {

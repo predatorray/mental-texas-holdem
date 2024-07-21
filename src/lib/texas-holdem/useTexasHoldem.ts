@@ -1,5 +1,4 @@
-import { PeerOptions } from "peerjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DecryptionKey, EncodedDeck, Player, PublicKey, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
 import useGameRoom from "../useGameRoom";
 import { useDecryptionKeyPair } from "./DecryptionKeyPair";
@@ -12,6 +11,7 @@ import useBankrollsAndBet from "./useBankrollsAndBet";
 import useWhoseTurn from "./useWhoseTurn";
 import usePot from "./usePot";
 import EventEmitter from "eventemitter3";
+import { PeerServerOptions } from "../usePeer";
 
 function toStringEncodedDeck(deck: EncodedDeck): StringEncodedDeck {
   return deck.cards.map(i => i.toString());
@@ -36,8 +36,7 @@ function useTexasHoldemEvent<E extends TexasHoldemEvent['type']>(
 
 export default function useTexasHoldem(props: {
   gameRoomId?: string;
-  peerOptions?: PeerOptions;
-}) {
+} & PeerServerOptions) {
   const [players, setPlayers] = useState<string[]>();
   const {
     pot,
@@ -57,10 +56,7 @@ export default function useTexasHoldem(props: {
     firePublicEvent,
     firePrivateEvent,
     gameEventEmitter,
-  } = useGameRoom<TexasHoldemEvent>({
-    gameRoomId: props.gameRoomId,
-    peerOptions: props.peerOptions,
-  });
+  } = useGameRoom<TexasHoldemEvent>(props);
 
   const texasHoldemEventEmitter = useTexasHoldemEventEmitter(gameEventEmitter);
 
