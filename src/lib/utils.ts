@@ -57,7 +57,7 @@ export function usePrevious<T>(value: T): T | undefined {
     ref.current = value;
   });
   return ref.current;
-};
+}
 
 export function useSet<T>(): [
   Set<T>,

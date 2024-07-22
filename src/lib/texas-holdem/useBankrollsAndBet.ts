@@ -41,7 +41,7 @@ export default function useBankrollsAndBet(
       return false;
     }
 
-    const currentBetAmount = betsPerPlayer.get(player)!;
+    const currentBetAmount = betsPerPlayer.get(player) ?? 0;
     if (currentBetAmount + raisedAmount < leastTotalBetAmount && currentBankroll !== raisedAmount) { // if less but not all-in
       console.warn(`Cannot bet ${raisedAmount} addition to ${currentBetAmount} because the least bet amount is ${leastTotalBetAmount}.`);
       return false;

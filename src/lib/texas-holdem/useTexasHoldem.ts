@@ -310,6 +310,10 @@ export default function useTexasHoldem(props: {
   }, [allInPlayers, calledPlayers, foldedPlayers, firePublicEvent, handleIfAlice, handleIfBob, players, boardStage, whoseTurn, isDealingCards, dealingCards]);
 
   const startGame = useCallback(() => {
+    if (members.length <= 1) {
+      console.warn('Cannot start the game because there is one player.');
+      return;
+    }
     setPlayers(curr => {
       const next = curr ? [...curr.slice(1), curr[0]] : members;
       firePublicEvent({
