@@ -9,7 +9,6 @@ import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
 import { StringEncodedDeck, TexasHoldemEvent, GameStartEvent, DeckStep1Event, DeckStep2Event, DeckStep3Event, DeckFinalizedEvent, DecryptCardEvent, ActionEvent, TexasHoldemEvents } from "./events";
 import useBankrollsAndBet from "./useBankrollsAndBet";
 import useWhoseTurn from "./useWhoseTurn";
-import usePot from "./usePot";
 import EventEmitter from "eventemitter3";
 import { PeerServerOptions } from "../usePeer";
 
@@ -38,9 +37,6 @@ export default function useTexasHoldem(props: {
   gameRoomId?: string;
 } & PeerServerOptions) {
   const [players, setPlayers] = useState<string[]>();
-  const {
-    pot,
-  } = usePot();
 
   const [deck, setDeck] = useState<EncodedDeck>();
   const {
@@ -195,7 +191,8 @@ export default function useTexasHoldem(props: {
     bigBlind,
     button,
     bankrolls,
-    betsPerPlayer,
+    totalBetsPerPlayer,
+    potAmount,
     allInPlayers,
     foldedPlayers,
     calledPlayers,
@@ -347,7 +344,7 @@ export default function useTexasHoldem(props: {
     peerState,
     playerId,
     players,
-    pot,
+    potAmount,
     hole,
     board,
     whoseTurn,
@@ -356,7 +353,7 @@ export default function useTexasHoldem(props: {
     button,
     startGame,
     bankrolls,
-    betsPerPlayer,
+    totalBetsPerPlayer,
     actions: {
       fireBet,
       fireFold,

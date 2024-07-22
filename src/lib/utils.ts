@@ -94,7 +94,7 @@ export function useSet<T>(): [
         return new Set();
       }
     });
-  }, []);
+  }, [setSet]);
   return [
     set,
     add,

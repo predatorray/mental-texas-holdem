@@ -12,7 +12,6 @@ function App() {
     peerState,
     playerId,
     players,
-    pot,
     hole,
     board,
     whoseTurn,
@@ -20,7 +19,8 @@ function App() {
     bigBlind,
     startGame,
     bankrolls,
-    betsPerPlayer,
+    potAmount,
+    totalBetsPerPlayer,
     actions,
   } = useTexasHoldem({
     gameRoomId: gameRoomId || undefined,
@@ -28,33 +28,38 @@ function App() {
   const [betAmount, setBetAmount] = useState<string>('0');
   return (
     <div className="App">
-      <div className="community-cards">
+      <div className="table">
         {
-          (() => {
-            if (peerState !== 'opened') {
-              return <>Connecting...</>;
-            } else if (players === undefined) {
-              return gameRoomId ? <>Waiting for the host to start the game...</> : <button onClick={() => startGame()}>start</button>;
-            } else if (hole && board) {
-              return (
-                <>
-                  <CardImage card={board[0]}/>
-                  <CardImage card={board[1]}/>
-                  <CardImage card={board[2]}/>
-                  <CardImage card={board[3]}/>
-                  <CardImage card={board[4]}/>
-                </>
-              );
-            } else {
-              return <>Shuffling...</>;
-            }
-          })()
+          players ? <div>Pot: ${potAmount}</div> : <></>
         }
+        <div className="community-cards">
+          {
+            (() => {
+              if (peerState !== 'opened') {
+                return <>Connecting...</>;
+              } else if (players === undefined) {
+                return gameRoomId ? <>Waiting for the host to start the game...</> : <button onClick={() => startGame()}>start</button>;
+              } else if (hole && board) {
+                return (
+                  <>
+                    <CardImage card={board[0]}/>
+                    <CardImage card={board[1]}/>
+                    <CardImage card={board[2]}/>
+                    <CardImage card={board[3]}/>
+                    <CardImage card={board[4]}/>
+                  </>
+                );
+              } else {
+                return <>Shuffling...</>;
+              }
+            })()
+          }
+        </div>
       </div>
       
       <div className="hand-cards">
         {
-          playerId && whoseTurn === playerId && (
+          players && playerId && whoseTurn === playerId ? (
             <div>
               <input type="text" value={betAmount} onChange={(e) => {
                 setBetAmount(e.target.value);
@@ -62,35 +67,35 @@ function App() {
               <button onClick={() => actions.fireBet(Number(betAmount))}>call</button>
               <button onClick={() => actions.fireFold()}>fold</button>
             </div>
-          )
+          ) : <></>
         }
         {
-          playerId && smallBlind === playerId && (
+          players && playerId && smallBlind === playerId ? (
             <div>SB</div>
-          )
+          ) : <></>
         }
         {
-          playerId && bigBlind === playerId && (
+          players && playerId && bigBlind === playerId ? (
             <div>BB</div>
-          )
+          ) : <></>
         }
         {
-          bankrolls && playerId && bankrolls.get(playerId) && (
+          players && bankrolls && playerId && bankrolls.get(playerId) !== undefined ? (
             <div>Bankroll: ${bankrolls.get(playerId)}</div>
-          )
+          ) : <></>
         }
         {
-          betsPerPlayer && playerId && betsPerPlayer.get(playerId) && (
-            <div>Bet: ${betsPerPlayer.get(playerId)}</div>
-          )
+          players && totalBetsPerPlayer && playerId && totalBetsPerPlayer.get(playerId) !== undefined ? (
+            <div>Bet: ${totalBetsPerPlayer.get(playerId)}</div>
+          ) : <></>
         }
         {
-          hole && (
+          hole ? (
             <>
               <CardImage card={hole[0]}/>
               <CardImage card={hole[1]}/>
             </>
-          )
+          ) : <></>
         }
       </div>
     </div>

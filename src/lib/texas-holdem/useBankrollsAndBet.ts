@@ -8,25 +8,24 @@ export default function useBankrollsAndBet(
   boardStage: BoardStage | null,
   players?: string[],
 ) {
-  // const [bankrolls, , updateBankroll, , , setBankrolls] = useMap<string, number>();
   const {
     bankrolls,
     updateAmountOfPlayer,
   } = useBankrolls(initialAmountPerPlayer, players);
 
-  const [betsPerPlayer, , updateBetsPerPlayer] = useMap<string, number>();
+  const [totalBetsPerPlayer, , updateTotalBetsPerPlayer] = useMap<string, number>();
   const anyOneHasBet: boolean = useMemo(() => {
-    for (const [, bet] of Array.from(betsPerPlayer.entries())) {
+    for (const bet of Array.from(totalBetsPerPlayer.values())) {
       if (bet > 0) {
         return true;
       }
     }
     return false;
-  }, [betsPerPlayer]);
+  }, [totalBetsPerPlayer]);
 
   const leastTotalBetAmount = useMemo(() => {
-    return Array.from(betsPerPlayer.entries()).map(([, betAmount]) => betAmount).reduce((a, b) => Math.max(a, b), 0);
-  }, [betsPerPlayer]);
+    return Array.from(totalBetsPerPlayer.values()).reduce((a, b) => Math.max(a, b), 0);
+  }, [totalBetsPerPlayer]);
 
   const [calledPlayers, addCalledPlayer, , clearCalledPlayers] = useSet<string>();
 
@@ -41,7 +40,7 @@ export default function useBankrollsAndBet(
       return false;
     }
 
-    const currentBetAmount = betsPerPlayer.get(player) ?? 0;
+    const currentBetAmount = totalBetsPerPlayer.get(player) ?? 0;
     if (currentBetAmount + raisedAmount < leastTotalBetAmount && currentBankroll !== raisedAmount) { // if less but not all-in
       console.warn(`Cannot bet ${raisedAmount} addition to ${currentBetAmount} because the least bet amount is ${leastTotalBetAmount}.`);
       return false;
@@ -56,13 +55,13 @@ export default function useBankrollsAndBet(
     }
 
     updateAmountOfPlayer(player, -raisedAmount);
-    updateBetsPerPlayer(player, prevBet => {
+    updateTotalBetsPerPlayer(player, prevBet => {
       const newBet = prevBet ? prevBet + raisedAmount : raisedAmount;
       console.info(`Player ${player} raised the bet to ${newBet}.`);
       return newBet;
     });
     return true;
-  }, [addCalledPlayer, bankrolls, betsPerPlayer, clearCalledPlayers, leastTotalBetAmount, updateAmountOfPlayer, updateBetsPerPlayer]);
+  }, [addCalledPlayer, bankrolls, totalBetsPerPlayer, clearCalledPlayers, leastTotalBetAmount, updateAmountOfPlayer, updateTotalBetsPerPlayer]);
 
   useEffect(() => {
     if (!players || anyOneHasBet) {
@@ -98,18 +97,23 @@ export default function useBankrollsAndBet(
 
   useEffect(() => {
     clearCalledPlayers();
-  }, [boardStage]);
+  }, [boardStage, clearCalledPlayers]);
 
   const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
   const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
   const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
+
+  const potAmount = useMemo(() => {
+    return Array.from(totalBetsPerPlayer.values()).reduce((a, b) => a + b, 0);
+  }, [totalBetsPerPlayer]);
 
   return {
     smallBlind,
     bigBlind,
     button,
     bankrolls,
-    betsPerPlayer,
+    totalBetsPerPlayer,
+    potAmount,
     allInPlayers,
     foldedPlayers,
     calledPlayers,
