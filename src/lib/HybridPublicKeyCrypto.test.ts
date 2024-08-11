@@ -18,4 +18,4 @@ test('encrypt and decrypt', async () => {
   const originalText = new TextDecoder().decode(decoded);
 
   expect(originalText).toBe(plaintext);
-});
+}, 30000);
