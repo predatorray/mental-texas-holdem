@@ -99,8 +99,11 @@ export default class GameRoom<T> {
 
   private _status: GameRoomStatus;
   private membersSyncedFromHost: string[] = [];
-  protected rsaKeyPairPromise: Promise<CryptoKeyPair>;
-  private rsaPublicKeys: Map<string, Deferred<CryptoKey>> = new Map();
+
+  // RSA Keys
+  public readonly rsaKeyPairPromise: Promise<CryptoKeyPair>;
+  public readonly jwk: Promise<JsonWebKey>;
+  private rsaPublicKeysOfOthers: Map<string, Deferred<CryptoKey>> = new Map();
 
   public peerId?: string;
   public hostId?: string;
@@ -119,6 +122,10 @@ export default class GameRoom<T> {
       true,
       ['encrypt', 'decrypt'],
     );
+    this.jwk = this.rsaKeyPairPromise.then(rsaKeyPair => window.crypto.subtle.exportKey(
+      'jwk',
+      rsaKeyPair.publicKey,
+    ));
 
     this.hostId = options?.hostId;
 
@@ -155,7 +162,7 @@ export default class GameRoom<T> {
       }, listener => peer.off('open', listener)));
     });
 
-    if (!options?.hostId) {
+    if (!options?.hostId) { // if it is a host
       peer.on('connection', this.lcm.register((conn) => {
         const openedConnPromise = new Promise<DataConnectionLike>((resolve, reject) => {
           conn.on('open', () => {
@@ -178,6 +185,12 @@ export default class GameRoom<T> {
           console.info(`The client connection is closed. (peerId = ${conn.peer}).`);
           this.guestConnectionPromises.delete(conn.peer);
         });
+        const membersChangedEvent: MembersChangedEvent = {
+          type: '_members',
+          data: this.members,
+        };
+        this.sendMessageToAllGuests(membersChangedEvent);
+        this.publishPublicKeyToSingleGuest(conn.peer); // publish the host's public key again when there is a new guest
       }, listener => peer.off('connection', listener)));
     }
 
@@ -203,19 +216,19 @@ export default class GameRoom<T> {
       : [];
   }
 
-  async emit(e: GameEvent<T>) {
+  async emitEvent(e: GameEvent<T>) {
     if (this.hostId) {
-      this.fireEventFromGuest(e);
+      await this.fireEventFromGuest(e);
     } else {
-      this.fireEventFromHost(e);
+      await this.fireEventFromHost(e);
     }
   }
 
-  on(handler: (e: GameEvent<T>, fromWhom: string) => void) {
+  onEvent(handler: (e: GameEvent<T>, fromWhom: string) => void) {
     this.emitter.on('event', handler);
   }
 
-  off(handler?: (e: GameEvent<T>, fromWhom: string) => void) {
+  offEvent(handler?: (e: GameEvent<T>, fromWhom: string) => void) {
     this.emitter.off('event', handler);
   }
 
@@ -282,6 +295,7 @@ export default class GameRoom<T> {
           break;
         case '_members':
           this.membersSyncedFromHost = e.data;
+          this.publishPublicKey();
           break;
         case '_publicKey':
           const rsaPulbicKeyPromise = window.crypto.subtle.importKey(
@@ -294,13 +308,13 @@ export default class GameRoom<T> {
             false,
             ['encrypt'],
           );
-          const rsaPublicKeyDeferred = this.rsaPublicKeys.get(e.sender);
+          const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
           if (rsaPublicKeyDeferred) {
             rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
           } else {
             // in case _publicKey event arrives before _members
             const deferred = new Deferred<CryptoKey>();
-            this.rsaPublicKeys.set(e.sender, deferred);
+            this.rsaPublicKeysOfOthers.set(e.sender, deferred);
             deferred.resolve(rsaPulbicKeyPromise);
           }
           break;
@@ -344,14 +358,14 @@ export default class GameRoom<T> {
             false,
             ['encrypt'],
           );
-          const rsaPublicKeyDeferred = this.rsaPublicKeys.get(e.sender);
+          const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
           if (rsaPublicKeyDeferred) {
             rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
           } else {
             // in case _publicKey event arrives before _members
-            if (!this.rsaPublicKeys.has(e.sender)) {
+            if (!this.rsaPublicKeysOfOthers.has(e.sender)) {
               const deferred = new Deferred<CryptoKey>();
-              this.rsaPublicKeys.set(e.sender, deferred);
+              this.rsaPublicKeysOfOthers.set(e.sender, deferred);
               deferred.resolve(rsaPulbicKeyPromise);
             }
           }
@@ -382,8 +396,19 @@ export default class GameRoom<T> {
     if (e.type === 'private') {
       // when sending private message from guest,
       // encryption is required, since host is acting as a relay, who can potentially see the plaintext
-      const recipientPublicKey = await this.rsaPublicKeys.get(e.recipient)!.promise;
-      const dataAsBuffer = new TextEncoder().encode(JSON.stringify(e.data));
+      const recipientRsaKeyDeferred = (() => {
+        const recipientRsaKeyDeferred = this.rsaPublicKeysOfOthers.get(e.recipient);
+        if (recipientRsaKeyDeferred) {
+          return recipientRsaKeyDeferred;
+        }
+        // create the Deferred object even the recipient is still unknown.
+        // this could happen when the sender knows the peer.id of the recipient before a `_members` event (e.g. unit testing).
+        const newDeferred = new Deferred<CryptoKey>();
+        this.rsaPublicKeysOfOthers.set(e.recipient, newDeferred);
+        return newDeferred;
+      })();
+      const recipientPublicKey = await recipientRsaKeyDeferred.promise;
+      const dataAsBuffer = new TextEncoder().encode(JSON.stringify(e));
       const encrypted = await encrypt(dataAsBuffer, recipientPublicKey);
       const encryptedHex = arrayBufferToHex(encrypted);
       const encryptedEvent: EncryptedPrivateGameEvent = {
@@ -417,5 +442,34 @@ export default class GameRoom<T> {
         this.emitter.emit('event', e, this.peerId!); // echo
         break;
     }
+  }
+
+  /**
+   * Sends PublicKeyEvent to all guests
+   */
+  private async publishPublicKey() {
+    if (this.hostId) {
+      await this.sendMessageToHost(await this.publicKeyEventAsync());
+    } else {
+      await this.sendMessageToAllGuests(await this.publicKeyEventAsync());
+    }
+  }
+
+  /**
+   * Sends PublicKeyEvent to a single guest
+   */
+  private async publishPublicKeyToSingleGuest(guestPeerId: string) {
+    await this.sendMessageToSingleGuest(guestPeerId, await this.publicKeyEventAsync());
+  }
+
+  /**
+   * @returns PublicKeyEvent from JSON Web Key (asynchronously)
+   */
+  private async publicKeyEventAsync(): Promise<PublicKeyEvent> {
+    return {
+      type: '_publicKey',
+      sender: this.peerId!,
+      jwk: await this.jwk,
+    };
   }
 }

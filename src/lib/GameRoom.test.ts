@@ -163,7 +163,7 @@ describe('GameRoom', () => {
     mockGuestPeer.emit('open', guestId);
 
     mockGuestPeer.lastConnection.emit('open');
-    await guestGameRoom.emit({
+    await guestGameRoom.emitEvent({
       type: 'public',
       data: 'test',
       sender: guestId,
@@ -230,12 +230,12 @@ describe('GameRoom', () => {
     const {mockGuestConn} = connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
 
     const hostGameRoomEventPromise = new Promise<GameEvent<string>>(resolve =>
-      hostGameRoom.on(e => {
+      hostGameRoom.onEvent(e => {
         resolve(e);
       })
     );
 
-    await guestGameRoom.emit({
+    await guestGameRoom.emitEvent({
       type: 'public',
       data: 'test',
       sender: guestId,
@@ -255,12 +255,12 @@ describe('GameRoom', () => {
     const {mockHostConn} = connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
 
     const guestGameRoomEventPromise = new Promise<GameEvent<string>>(resolve =>
-      guestGameRoom.on(e => {
+      guestGameRoom.onEvent(e => {
         resolve(e);
       })
     );
 
-    await hostGameRoom.emit({
+    await hostGameRoom.emitEvent({
       type: 'public',
       data: 'test',
       sender: guestId,
@@ -286,12 +286,12 @@ describe('GameRoom', () => {
     ]
 
     const eventPromises = [
-      new Promise<GameEvent<string>>(resolve => hostGameRoom.on(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.on(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.on(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);})),
     ];
 
-    await guests[0].guestGameRoom.emit({
+    await guests[0].guestGameRoom.emitEvent({
       type: 'public',
       data: 'test',
       sender: guestIds[0],
@@ -317,12 +317,12 @@ describe('GameRoom', () => {
     connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
 
     const eventPromises = [
-      new Promise<GameEvent<string>>(resolve => hostGameRoom.on(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.on(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.on(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);})),
     ];
 
-    await hostGameRoom.emit({
+    await hostGameRoom.emitEvent({
       type: 'public',
       data: 'test',
       sender: guestIds[0],
@@ -336,5 +336,78 @@ describe('GameRoom', () => {
     }
   });
 
-  // TODO test private events
+  test('send private data from one guest to another thru host', async () => {
+    const {mockHostPeer} = openHost();
+    const guestIds = ['guest0', 'guest1'];
+    const guests = [
+      openGuest(guestIds[0]),
+      openGuest(guestIds[1]),
+    ];
+    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
+    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+
+    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);}));
+
+    await guests[0].guestGameRoom.emitEvent({
+      type: 'private',
+      data: 'test',
+      sender: guestIds[0],
+      recipient: guestIds[1],
+    });
+
+    const guest1GameRoomEvent = await recipientEventPromise;
+    expect(guest1GameRoomEvent.data).toBe('test');
+    expect(guest1GameRoomEvent.type).toBe('private');
+    expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
+  }, 30000);
+
+  test('send private data from one guest to host', async () => {
+    const {mockHostPeer, hostGameRoom} = openHost();
+    const guestIds = ['guest0', 'guest1'];
+    const guests = [
+      openGuest(guestIds[0]),
+      openGuest(guestIds[1]),
+    ];
+    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
+    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+
+    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);}));
+
+    await guests[0].guestGameRoom.emitEvent({
+      type: 'private',
+      data: 'test',
+      sender: guestIds[0],
+      recipient: DEFAULT_HOST_ID,
+    });
+
+    const guest1GameRoomEvent = await recipientEventPromise;
+    expect(guest1GameRoomEvent.data).toBe('test');
+    expect(guest1GameRoomEvent.type).toBe('private');
+    expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
+  }, 30000);
+
+  test('send private data from host to a guest', async () => {
+    const {mockHostPeer, hostGameRoom} = openHost();
+    const guestIds = ['guest0', 'guest1'];
+    const guests = [
+      openGuest(guestIds[0]),
+      openGuest(guestIds[1]),
+    ];
+    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
+    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+
+    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);}));
+
+    await hostGameRoom.emitEvent({
+      type: 'private',
+      data: 'test',
+      sender: DEFAULT_HOST_ID,
+      recipient: guestIds[0],
+    });
+
+    const guest1GameRoomEvent = await recipientEventPromise;
+    expect(guest1GameRoomEvent.data).toBe('test');
+    expect(guest1GameRoomEvent.type).toBe('private');
+    expect(guest1GameRoomEvent.sender).toBe(DEFAULT_HOST_ID);
+  }, 30000);
 });
