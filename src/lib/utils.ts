@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export function concatBuffers(buffers: Array<ArrayBuffer>): ArrayBuffer {
   const totalBytes = buffers.map(b => b.byteLength).reduce((a, b) => a + b);
@@ -52,11 +52,13 @@ export function hexToArrayBuffer(hex: string): ArrayBuffer {
 }
 
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>();
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref.current;
+  const prevRef = useRef<T>();
+  const curRef = useRef<T>();
+  if (curRef.current !== value) {
+    prevRef.current = curRef.current;
+    curRef.current = value;
+  }
+  return prevRef.current;
 }
 
 export function useSet<T>(): [

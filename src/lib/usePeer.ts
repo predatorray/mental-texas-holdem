@@ -47,9 +47,11 @@ export default function usePeer(props: {
   ]);
 
   const previousPeer = usePrevious(peer);
-  if (previousPeer && previousPeer !== peer) {
-    previousPeer.destroy();
-  }
+  useEffect(() => {
+    if (previousPeer) {
+      previousPeer.destroy();
+    }
+  }, [previousPeer]);
 
   const [peerState, setPeerState] = useState<PeerState>('connecting');
   const [peerId, setPeerId] = useState<string>();
@@ -192,9 +194,11 @@ export default function usePeer(props: {
     return emitter;
   }, [props.hostId, hostConnectionPromise, guestConnectionPromises]);
   const previousPeerEventEmitter = usePrevious(peerEventEmitter);
-  if (previousPeerEventEmitter && previousPeerEventEmitter !== peerEventEmitter) {
-    previousPeerEventEmitter.removeAllListeners();
-  }
+  useEffect(() => {
+    if (previousPeerEventEmitter) {
+      previousPeerEventEmitter.removeAllListeners();
+    }
+  }, [previousPeerEventEmitter]);
 
   if (props.hostId) {
     return {

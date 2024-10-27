@@ -211,9 +211,11 @@ export default function useGameRoom<T>(props: {
     return emitter;
   }, [peerEventEmitter, peerId, props.gameRoomId, rsaKeyPairPromise, rsaPublicKeys, sendMessageToAllGuests, sendMessageToSingleGuest]);
   const previousGameEventEmitter = usePrevious(gameEventEmitter);
-  if (previousGameEventEmitter && previousGameEventEmitter !== gameEventEmitter) {
-    previousGameEventEmitter.removeAllListeners();
-  }
+  useEffect(() => {
+    if (previousGameEventEmitter) {
+      previousGameEventEmitter.removeAllListeners();
+    }
+  }, [previousGameEventEmitter]);
 
   const fireEventFromHost = useCallback((e: GameEvent<T>) => {
     console.info(`[GameRoom] Sending GameEvent ${e.type}.`);
