@@ -13,13 +13,13 @@ export default function useHole(
     if (!players || !deck || !decryptionKeyPairs) {
       return null;
     }
-    const playOffset = players.findIndex(v => v === playerId);
-    if (playOffset < 0) {
+    const playerOffset = players.findIndex(v => v === playerId);
+    if (playerOffset < 0) {
       throw new Error('Cannot find player');
     }
     const holeOffsets = [
-      playOffset * 2 + 5,
-      playOffset * 2 + 6,
+      playerOffset * 2 + 5,
+      playerOffset * 2 + 6,
     ];
     if (decryptionKeyPairs[holeOffsets[0]]?.alice && decryptionKeyPairs[holeOffsets[0]]?.bob
       && decryptionKeyPairs[holeOffsets[1]]?.alice && decryptionKeyPairs[holeOffsets[1]]?.bob
