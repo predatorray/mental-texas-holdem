@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { DecryptionKey, EncodedDeck, Player, PublicKey, encodeStandardCard, getStandard52Deck } from "mental-poker-toolkit";
+import {
+  DecryptionKey,
+  EncodedDeck,
+  Player,
+  PublicKey,
+  encodeStandardCard,
+  getStandard52Deck,
+} from "mental-poker-toolkit";
 import useGameRoom from "../useGameRoom";
 import { useDecryptionKeyPair } from "./DecryptionKeyPair";
 import useBoard from "./useBoard";
@@ -11,6 +18,8 @@ import useBankrollsAndBet from "./useBankrollsAndBet";
 import useWhoseTurn from "./useWhoseTurn";
 import EventEmitter from "eventemitter3";
 import { PeerServerOptions } from "../usePeer";
+import useShowdown from "./useShowdown";
+import {rankDescription} from "phe";
 
 function toStringEncodedDeck(deck: EncodedDeck): StringEncodedDeck {
   return deck.cards.map(i => i.toString());
@@ -301,10 +310,58 @@ export default function useTexasHoldem(props: {
         handleIfBob(bob => showRiverCard(bob, 'bob'));
         break;
       case 'River': // show cards
-        console.info('Show cards');
+        const revealAllHoleCards = (player: Player, aliceOrBob: 'alice' | 'bob') => {
+          let cardOffset = 5;
+          for (let i = 0; i < players.length; ++i) {
+            const cardOffsets: [number, number] = [
+              cardOffset++,
+              cardOffset++,
+            ];
+            const dk = [
+              player.getIndividualKey(cardOffsets[0]).decryptionKey,
+              player.getIndividualKey(cardOffsets[1]).decryptionKey,
+            ];
+            console.info(`Revealing cards [ ${cardOffsets[0]}, ${cardOffsets[1]} ].`);
+            firePublicEvent({
+              type: 'card/decrypt',
+              cardOffset: cardOffsets[0],
+              aliceOrBob,
+              decryptionKey: {
+                d: dk[0].d.toString(),
+                n: dk[0].n.toString(),
+              },
+            });
+            firePublicEvent({
+              type: 'card/decrypt',
+              cardOffset: cardOffsets[1],
+              aliceOrBob,
+              decryptionKey: {
+                d: dk[1].d.toString(),
+                n: dk[1].n.toString(),
+              },
+            });
+          }
+        };
+        handleIfAlice(alice => revealAllHoleCards(alice, 'alice'));
+        handleIfBob(bob => revealAllHoleCards(bob, 'bob'));
         break;
     }
   }, [allInPlayers, calledPlayers, foldedPlayers, firePublicEvent, handleIfAlice, handleIfBob, players, boardStage, whoseTurn, isDealingCards, dealingCards]);
+
+  const showdownResult = useShowdown(board, foldedPlayers, deck, players, decryptionKeyPairs);
+
+  useEffect(() => {
+    if (!showdownResult) {
+      return;
+    }
+
+    const pot = new Map(totalBetsPerPlayer);
+    for (let winner of showdownResult) {
+      console.log(rankDescription[winner.handValue]);
+      console.log(winner.players);
+    }
+    // TODO update bankrolls
+  }, [showdownResult, totalBetsPerPlayer]);
 
   const startGame = useCallback(() => {
     if (members.length <= 1) {
