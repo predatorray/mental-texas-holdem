@@ -13,13 +13,23 @@ import useBoard from "./useBoard";
 import useHole from "./useHole";
 import { useMentalPokerParticipants } from "./MentalPokerParticipants";
 import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
-import { StringEncodedDeck, TexasHoldemEvent, GameStartEvent, DeckStep1Event, DeckStep2Event, DeckStep3Event, DeckFinalizedEvent, DecryptCardEvent, ActionEvent, TexasHoldemEvents } from "./events";
+import {
+  StringEncodedDeck,
+  TexasHoldemEvent,
+  GameStartEvent,
+  DeckStep1Event,
+  DeckStep2Event,
+  DeckStep3Event,
+  DeckFinalizedEvent,
+  DecryptCardEvent,
+  ActionEvent,
+  TexasHoldemEvents,
+} from "./events";
 import useBankrollsAndBet from "./useBankrollsAndBet";
 import useWhoseTurn from "./useWhoseTurn";
 import EventEmitter from "eventemitter3";
 import { PeerServerOptions } from "../usePeer";
 import useShowdown from "./useShowdown";
-import {rankDescription} from "phe";
 
 function toStringEncodedDeck(deck: EncodedDeck): StringEncodedDeck {
   return deck.cards.map(i => i.toString());
@@ -351,21 +361,53 @@ export default function useTexasHoldem(props: {
   const showdownResult = useShowdown(board, foldedPlayers, deck, players, decryptionKeyPairs);
 
   useEffect(() => {
-    if (!showdownResult) {
+    if (!showdownResult || totalBetsPerPlayer.size === 0) {
       return;
     }
 
     const pot = new Map(totalBetsPerPlayer);
-    for (let winner of showdownResult) {
-      console.log(rankDescription[winner.handValue]);
-      console.log(winner.players);
+    const amountsToBeUpdated = new Map<string, number>();
+    for (let result of showdownResult) {
+      const winners = result.players.sort((p1, p2) => (pot.get(p1) ?? 0) - (pot.get(p2) ?? 0));
+      let amountUnallocated: number = 0;
+      for (let winnerOffset = 0; winnerOffset < winners.length; ++winnerOffset) {
+        let winner = winners[winnerOffset];
+        const betPortion = pot.get(winner) ?? 0;
+
+        for (let [p, betAmount] of Array.from(pot.entries())) {
+          const wonAmount = Math.min(betPortion, betAmount);
+          amountUnallocated += wonAmount;
+          const remaining = betAmount - wonAmount;
+          if (remaining === 0) {
+            pot.delete(p);
+          } else {
+            pot.set(p, remaining);
+          }
+        }
+
+        const wonPortion = Math.floor(amountUnallocated / (winners.length - winnerOffset));
+        amountUnallocated -= wonPortion;
+        console.log(`Player ${winner} won ${wonPortion}.`);
+        amountsToBeUpdated.set(winner, (amountsToBeUpdated.get(winner) ?? 0) + wonPortion);
+      }
     }
-    // TODO update bankrolls
+    // remaining
+    for (let [p, remaining] of Array.from(pot.entries())) {
+      amountsToBeUpdated.set(p, (amountsToBeUpdated.get(p) ?? 0) + remaining);
+    }
+    // remove zero amount
+    for (let [p, amount] of Array.from(amountsToBeUpdated)) {
+      if (amount === 0) {
+        amountsToBeUpdated.delete(p);
+      }
+    }
+    console.log(amountsToBeUpdated);
+    console.log('next round begins');
   }, [showdownResult, totalBetsPerPlayer]);
 
   const startGame = useCallback(() => {
     if (members.length <= 1) {
-      console.warn('Cannot start the game because there is one player.');
+      console.warn('Cannot start the game because there is only one player.');
       return;
     }
     setPlayers(curr => {
