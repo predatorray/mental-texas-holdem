@@ -64,8 +64,14 @@ function App() {
               <input type="text" value={betAmount} onChange={(e) => {
                 setBetAmount(e.target.value);
               }}></input>
-              <button onClick={() => actions.fireBet(Number(betAmount))}>call</button>
-              <button onClick={() => actions.fireFold()}>fold</button>
+              <button onClick={() => {
+                actions.fireBet(Number(betAmount));
+                setBetAmount('0');
+              }}>call</button>
+              <button onClick={() => {
+                actions.fireFold();
+                setBetAmount('0');
+              }}>fold</button>
             </div>
           ) : <></>
         }
