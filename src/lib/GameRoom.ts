@@ -1,5 +1,5 @@
 import EventEmitter from "eventemitter3";
-import { BaseConnectionErrorType, DataConnection, DataConnectionErrorType, MediaConnection, PeerConnectOption, PeerError, PeerErrorType } from "peerjs";
+import { DataConnection, DataConnectionErrorType, MediaConnection, PeerConnectOption } from "peerjs";
 import Deferred from "./Deferred";
 import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
 import { arrayBufferToHex, hexToArrayBuffer } from "./utils";
@@ -68,12 +68,30 @@ export type GameRoomOptions = {
 export interface DataConnectionLikeEvents {
   open: () => void;
   data: (data: unknown) => void;
-  error: (error: PeerError<DataConnectionErrorType | BaseConnectionErrorType>) => void;
+  error: (error: any) => void;
   iceStateChanged: (state: RTCIceConnectionState) => void;
   close: () => void;
 }
 
-export interface DataConnectionLike extends EventEmitter<DataConnectionLikeEvents, DataConnectionErrorType> {
+export interface EventEmitterLike<
+  EventTypes extends EventEmitter.ValidEventTypes = string | symbol,
+  Context extends any = any
+> {
+  on<T extends EventEmitter.EventNames<EventTypes>>(
+    event: T,
+    fn: EventEmitter.EventListener<EventTypes, T>,
+    context?: Context
+  ): this;
+
+  off<T extends EventEmitter.EventNames<EventTypes>>(
+    event: T,
+    fn?: EventEmitter.EventListener<EventTypes, T>,
+    context?: Context,
+    once?: boolean
+  ): this;
+}
+
+export interface DataConnectionLike extends EventEmitterLike<DataConnectionLikeEvents, DataConnectionErrorType> {
   readonly peer: string;
   send(data: any, chunked?: boolean): void | Promise<void>;
   close(): void;
@@ -85,10 +103,10 @@ export interface PeerLikeEvents {
   call: (mediaConnection: MediaConnection) => void;
   close: () => void;
   disconnected: (currentId: string) => void;
-  error: (error: PeerError<`${PeerErrorType}`>) => void;
+  error: (error: any) => void;
 }
 
-export interface PeerLike extends EventEmitter<PeerLikeEvents, never> {
+export interface PeerLike extends EventEmitterLike<PeerLikeEvents, never> {
   connect(peer: string, options?: PeerConnectOption): DataConnectionLike
 }
 
