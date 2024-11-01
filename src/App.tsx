@@ -4,10 +4,9 @@ import './App.css';
 
 import CardImage from './components/CardImage';
 import useTexasHoldem from './lib/texas-holdem/useTexasHoldem';
+import TexasHoldemGameRoom from "./lib/texas-holdem/TexasHoldemGameRoom";
 
 function App() {
-  const params = new URL(document.location.toString()).searchParams;
-  const gameRoomId = params.get('gameRoomId');
   const {
     peerState,
     playerId,
@@ -23,9 +22,7 @@ function App() {
     totalBetsPerPlayer,
     showdownResultOfLastRound,
     actions,
-  } = useTexasHoldem({
-    gameRoomId: gameRoomId || undefined,
-  });
+  } = useTexasHoldem();
   const [betAmount, setBetAmount] = useState<string>('0');
   return (
     <div className="App">
@@ -37,7 +34,28 @@ function App() {
           {
             (() => {
               if (players === undefined) {
-                return gameRoomId ? <>Waiting for the host to start the game...</> : <button onClick={() => startGame()}>start</button>;
+                const roomLink = (() => {
+                  if (!playerId) {
+                    return null;
+                  }
+                  if (TexasHoldemGameRoom.hostId) {
+                    return window.location.href;
+                  }
+                  return `${window.location.href}?gameRoomId=${playerId}`;
+                })();
+                return TexasHoldemGameRoom.hostId
+                  ? (
+                    <>
+                      <p>Share the link: {roomLink ? <a href={roomLink} target="_blank">{roomLink}</a> : '...'}</p>
+                      <p>Waiting for the host to start the game...</p>
+                    </>
+                  )
+                  : (
+                    <>
+                      <p>Share the link: {roomLink ? <a href={roomLink} target="_blank">{roomLink}</a> : '...'}</p>
+                      <button onClick={() => startGame()}>start</button>
+                    </>
+                  );
               } else if (hole && board) {
                 return (
                   <>

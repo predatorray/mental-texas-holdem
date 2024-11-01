@@ -75,9 +75,7 @@ TexasHoldemGameRoom.onEvent((e, fromWhom) => {
   TexasHoldemGameRoomSingletonEventEmitter.emit('event', e.data, fromWhom);
 });
 
-export default function useTexasHoldem(props: {
-  gameRoomId?: string;
-} & PeerServerOptions) {
+export default function useTexasHoldem() {
   const [peerId, setPeerId] = useState<string>();
   useEffect(() => {
     const peerIdListener = (peerIdAssigned: string) => setPeerId(peerIdAssigned);
