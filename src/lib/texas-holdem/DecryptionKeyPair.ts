@@ -33,9 +33,14 @@ export function useDecryptionKeyPair() {
     });
   }, [setDecryptionKeyPairs]);
 
+  const resetDecryptionKeyPairs = () => {
+    setDecryptionKeyPairs(undefined);
+  };
+
   return {
     decryptionKeyPairs,
     setAliceDecryptionKey,
     setBobDecryptionKey,
+    resetDecryptionKeyPairs,
   };
 }

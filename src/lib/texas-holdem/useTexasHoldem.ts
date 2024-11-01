@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {
   DecryptionKey,
   EncodedDeck,
@@ -27,7 +27,7 @@ import useBankrollsAndBet from "./useBankrollsAndBet";
 import useWhoseTurn from "./useWhoseTurn";
 import EventEmitter from "eventemitter3";
 import { PeerServerOptions } from "../usePeer";
-import useShowdown from "./useShowdown";
+import useShowdown, {ShowdownResult} from "./useShowdown";
 import {GameRoomEvents, GameRoomStatus} from "../GameRoom";
 import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
 import TexasHoldemGameRoom from "./TexasHoldemGameRoom";
@@ -103,6 +103,7 @@ export default function useTexasHoldem(props: {
     decryptionKeyPairs,
     setAliceDecryptionKey,
     setBobDecryptionKey,
+    resetDecryptionKeyPairs,
   } = useDecryptionKeyPair();
 
   const {
@@ -120,6 +121,7 @@ export default function useTexasHoldem(props: {
     setSharedPublicKey,
     handleIfAlice,
     handleIfBob,
+    resetMentalPokerParticipants,
   } = useMentalPokerParticipants(peerId);
 
   // start
@@ -143,7 +145,7 @@ export default function useTexasHoldem(props: {
         }
       });
     });
-  }, [firePublicEvent, handleIfAlice, setMentalPokerParticipants]));
+  }, [handleIfAlice, setMentalPokerParticipants]));
 
   // deck/step1
   useTexasHoldemEvent(texasHoldemEventEmitter, 'deck/step1', useCallback((e: DeckStep1Event) => {
@@ -160,7 +162,7 @@ export default function useTexasHoldem(props: {
         deck: toStringEncodedDeck(encryptedWithKeyAKeyB),
       });
     });
-  }, [firePublicEvent, handleIfBob, setSharedPublicKey]));
+  }, [handleIfBob, setSharedPublicKey]));
 
   // deck/step2
   useTexasHoldemEvent(texasHoldemEventEmitter, 'deck/step2', useCallback((e: DeckStep2Event) => {
@@ -171,7 +173,7 @@ export default function useTexasHoldem(props: {
         deck: toStringEncodedDeck(encryptedWithIndividualKeyAKeyB),
       });
     });
-  }, [firePublicEvent, handleIfAlice]));
+  }, [handleIfAlice]));
 
   // deck/step3
   useTexasHoldemEvent(texasHoldemEventEmitter, 'deck/step3', useCallback((e: DeckStep3Event) => {
@@ -182,7 +184,7 @@ export default function useTexasHoldem(props: {
         deck: toStringEncodedDeck(encryptedBothKeysIndividually),
       });
     });
-  }, [firePublicEvent, handleIfBob]));
+  }, [handleIfBob]));
 
   // deck/finalized
   useTexasHoldemEvent(texasHoldemEventEmitter, 'deck/finalized', useCallback((e: DeckFinalizedEvent) => {
@@ -222,7 +224,7 @@ export default function useTexasHoldem(props: {
     }
     handleIfAlice(alice => dealHoleCards(alice, 'alice'));
     handleIfBob(bob => dealHoleCards(bob, 'bob'));
-  }, [firePrivateEvent, handleIfAlice, handleIfBob, players]));
+  }, [handleIfAlice, handleIfBob, players]));
 
   // card/decrypt
   useTexasHoldemEvent(texasHoldemEventEmitter, 'card/decrypt', useCallback((e: DecryptCardEvent) => {
@@ -237,10 +239,11 @@ export default function useTexasHoldem(props: {
     }
   }, [setAliceDecryptionKey, setBobDecryptionKey]));
 
+  const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
+  const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
+  const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
+
   const {
-    smallBlind,
-    bigBlind,
-    button,
     bankrolls,
     totalBetsPerPlayer,
     potAmount,
@@ -249,11 +252,13 @@ export default function useTexasHoldem(props: {
     calledPlayers,
     bet,
     fold,
+    updateBankrollsAndResetBet,
   } = useBankrollsAndBet(100, boardStage, players); // TODO read 100 from settings
 
   const {
     whoseTurn,
     nextPlayersTurn,
+    resetWhoseTurn,
   } = useWhoseTurn(allInPlayers, foldedPlayers, calledPlayers, boardStage, players);
 
   // action
@@ -388,12 +393,17 @@ export default function useTexasHoldem(props: {
         handleIfBob(bob => revealAllHoleCards(bob, 'bob'));
         break;
     }
-  }, [allInPlayers, calledPlayers, foldedPlayers, firePublicEvent, handleIfAlice, handleIfBob, players, boardStage, whoseTurn, isDealingCards, dealingCards]);
+  }, [allInPlayers, calledPlayers, foldedPlayers, handleIfAlice, handleIfBob, players, boardStage, whoseTurn, isDealingCards, dealingCards]);
 
-  const showdownResult = useShowdown(board, foldedPlayers, deck, players, decryptionKeyPairs);
+  const showdownResult = useShowdown(board, foldedPlayers, isDealingCards, deck, players, decryptionKeyPairs);
+
+  const [showdownResultOfLastRound, setShowdownResultOfLastRound] = useState<ShowdownResult>();
+
+  const [round, setRound] = useState(0);
+  const nextRound = useCallback(() => setRound(prev => prev + 1), []);
 
   useEffect(() => {
-    if (!showdownResult || totalBetsPerPlayer.size === 0) {
+    if (!showdownResult || totalBetsPerPlayer.size === 0 || whoseTurn) {
       return;
     }
 
@@ -433,17 +443,28 @@ export default function useTexasHoldem(props: {
         amountsToBeUpdated.delete(p);
       }
     }
-    console.log(amountsToBeUpdated);
-    console.log('next round begins');
-  }, [showdownResult, totalBetsPerPlayer]);
+    // reset everything of this round
+    setPlayers(undefined);
+    setDeck(undefined);
+    resetDecryptionKeyPairs();
+    resetMentalPokerParticipants();
+    updateBankrollsAndResetBet(amountsToBeUpdated);
+    resetWhoseTurn();
+    setShowdownResultOfLastRound(showdownResult);
+    nextRound();
+  }, [updateBankrollsAndResetBet, resetDecryptionKeyPairs, resetMentalPokerParticipants, resetWhoseTurn, showdownResult, totalBetsPerPlayer, whoseTurn, nextRound]);
 
   const startGame = useCallback(() => {
     if (TexasHoldemGameRoom.members.length <= 1) {
       console.warn('Cannot start the game because there is only one player.');
       return;
     }
+
     setPlayers(curr => {
-      const next = curr ? [...curr.slice(1), curr[0]] : TexasHoldemGameRoom.members;
+      const next = [
+        ...TexasHoldemGameRoom.members.slice(round % TexasHoldemGameRoom.members.length),
+        ...TexasHoldemGameRoom.members.slice(0, round % TexasHoldemGameRoom.members.length),
+      ];
       firePublicEvent({
         type: 'start',
         players: next,
@@ -454,7 +475,7 @@ export default function useTexasHoldem(props: {
       });
       return next;
     });
-  }, [firePublicEvent, TexasHoldemGameRoom.members]);
+  }, [round]);
 
   const fireBet = useCallback((amount: number) => {
     firePublicEvent({
@@ -462,14 +483,14 @@ export default function useTexasHoldem(props: {
       action: 'bet',
       amount,
     });
-  }, [firePublicEvent]);
+  }, []);
 
   const fireFold = useCallback(() => {
     firePublicEvent({
       type: 'action',
       action: 'fold',
     });
-  }, [firePublicEvent]);
+  }, []);
 
   return {
     peerState: status,
@@ -485,6 +506,7 @@ export default function useTexasHoldem(props: {
     startGame,
     bankrolls,
     totalBetsPerPlayer,
+    showdownResultOfLastRound,
     actions: {
       fireBet,
       fireFold,

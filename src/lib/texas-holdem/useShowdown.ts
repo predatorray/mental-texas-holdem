@@ -13,12 +13,13 @@ export type ShowdownResult = Array<{
 export default function useShowdown(
   board: Board | null,
   foldedPlayers: Set<string>,
+  isDealingCards: boolean,
   deck?: EncodedDeck,
   players?: string[],
   decryptionKeyPairs?: DecryptionKeyPair[],
 ): ShowdownResult | null {
   const holesShownPerPlayer = useMemo(() => {
-    if (!deck || !players || !decryptionKeyPairs || decryptionKeyPairs.length < CARDS) {
+    if (!deck || !players || !decryptionKeyPairs || decryptionKeyPairs.length < CARDS || isDealingCards) {
       return null;
     }
     const holesOfEachPlayer = new Map<string, StandardCard[]>();

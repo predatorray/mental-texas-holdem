@@ -92,10 +92,17 @@ export function useMentalPokerParticipants(playerId?: string) {
   const {
     handleIfBob,
   } = useBob(mentalPokerParticipants, playerId, sharedPublicKey);
+
+  const resetMentalPokerParticipants = () => {
+    setMentalPokerParticipants(undefined);
+    setSharedPublicKey(undefined);
+  };
+
   return {
     setMentalPokerParticipants,
     setSharedPublicKey,
     handleIfAlice,
     handleIfBob,
+    resetMentalPokerParticipants,
   };
 }

@@ -32,11 +32,26 @@ export default function useBankrolls(initialAmount: number, players?: string[]) 
         newBankrolls.set(player, bankroll + amountAdded);
       }
       return newBankrolls;
-    })
+    });
+  }, [setBankrolls]);
+
+  const updateAmountsOfPlayers = useCallback((amountsAddedPerPlay: Map<string, number>) => {
+    const zeroExcludedAmounts = Array.from(amountsAddedPerPlay.entries()).filter(([p, amount]) => amount !== 0);
+    if (zeroExcludedAmounts.length === 0) {
+      return;
+    }
+    setBankrolls(prev => {
+      const newBankrolls = new Map(prev);
+      for (let [p, amount] of zeroExcludedAmounts) {
+        newBankrolls.set(p, (newBankrolls.get(p) ?? 0) + amount);
+      }
+      return newBankrolls;
+    });
   }, [setBankrolls]);
 
   return {
     bankrolls,
     updateAmountOfPlayer,
+    updateAmountsOfPlayers,
   };
 }

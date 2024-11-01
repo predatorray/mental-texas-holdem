@@ -11,9 +11,10 @@ export default function useBankrollsAndBet(
   const {
     bankrolls,
     updateAmountOfPlayer,
+    updateAmountsOfPlayers,
   } = useBankrolls(initialAmountPerPlayer, players);
 
-  const [totalBetsPerPlayer, , updateTotalBetsPerPlayer] = useMap<string, number>();
+  const [totalBetsPerPlayer, , updateTotalBetsPerPlayer, , resetTotalBetsPerPlayer] = useMap<string, number>();
   const anyOneHasBet: boolean = useMemo(() => {
     for (const bet of Array.from(totalBetsPerPlayer.values())) {
       if (bet > 0) {
@@ -89,7 +90,7 @@ export default function useBankrollsAndBet(
     return res;
   }, [bankrolls, players]);
 
-  const [foldedPlayers, addFoldedPlayer] = useSet<string>();
+  const [foldedPlayers, addFoldedPlayer, , clearFoldedPlayer] = useSet<string>();
   const fold = useCallback((player: string) => {
     console.info(`Player ${player} folded.`);
     addFoldedPlayer(player);
@@ -99,18 +100,18 @@ export default function useBankrollsAndBet(
     clearCalledPlayers();
   }, [boardStage, clearCalledPlayers]);
 
-  const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
-  const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
-  const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
-
   const potAmount = useMemo(() => {
     return Array.from(totalBetsPerPlayer.values()).reduce((a, b) => a + b, 0);
   }, [totalBetsPerPlayer]);
 
+  const updateBankrollsAndResetBet = (amountsToBeUpdatedPerPlayer: Map<string, number>) => {
+    resetTotalBetsPerPlayer();
+    clearCalledPlayers();
+    clearFoldedPlayer();
+    updateAmountsOfPlayers(amountsToBeUpdatedPerPlayer);
+  };
+
   return {
-    smallBlind,
-    bigBlind,
-    button,
     bankrolls,
     totalBetsPerPlayer,
     potAmount,
@@ -119,5 +120,6 @@ export default function useBankrollsAndBet(
     calledPlayers,
     bet,
     fold,
+    updateBankrollsAndResetBet,
   };
 }

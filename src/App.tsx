@@ -21,6 +21,7 @@ function App() {
     bankrolls,
     potAmount,
     totalBetsPerPlayer,
+    showdownResultOfLastRound,
     actions,
   } = useTexasHoldem({
     gameRoomId: gameRoomId || undefined,
@@ -84,7 +85,7 @@ function App() {
           ) : <></>
         }
         {
-          players && bankrolls && playerId && bankrolls.get(playerId) !== undefined ? (
+          bankrolls && playerId && bankrolls.get(playerId) !== undefined ? (
             <div>Bankroll: ${bankrolls.get(playerId)}</div>
           ) : <></>
         }

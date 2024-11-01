@@ -86,8 +86,13 @@ export default function useWhoseTurn(
     });
   }, [allInPlayers, foldedPlayers, players]);
 
+  const resetWhoseTurn = () => {
+    setWhoseTurnOffset(undefined);
+  };
+
   return {
     whoseTurn,
     nextPlayersTurn,
+    resetWhoseTurn,
   };
 }
