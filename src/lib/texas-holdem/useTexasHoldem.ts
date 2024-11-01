@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import {useCallback, useEffect, useState} from "react";
 import {
   DecryptionKey,
   EncodedDeck,
@@ -7,12 +7,10 @@ import {
   encodeStandardCard,
   getStandard52Deck,
 } from "mental-poker-toolkit";
-import useGameRoom from "../useGameRoom";
 import { useDecryptionKeyPair } from "./DecryptionKeyPair";
 import useBoard from "./useBoard";
 import useHole from "./useHole";
 import { useMentalPokerParticipants } from "./MentalPokerParticipants";
-import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
 import {
   StringEncodedDeck,
   TexasHoldemEvent,
@@ -30,6 +28,9 @@ import useWhoseTurn from "./useWhoseTurn";
 import EventEmitter from "eventemitter3";
 import { PeerServerOptions } from "../usePeer";
 import useShowdown from "./useShowdown";
+import {GameRoomEvents, GameRoomStatus} from "../GameRoom";
+import useTexasHoldemEventEmitter from "./useTexasHoldemEventEmitter";
+import TexasHoldemGameRoom from "./TexasHoldemGameRoom";
 
 function toStringEncodedDeck(deck: EncodedDeck): StringEncodedDeck {
   return deck.cards.map(i => i.toString());
@@ -52,9 +53,49 @@ function useTexasHoldemEvent<E extends TexasHoldemEvent['type']>(
   }, [callback, e, texasHoldemEventEmitter]);
 }
 
+const firePublicEvent = async (e: TexasHoldemEvent) => {
+  await TexasHoldemGameRoom.emitEvent({
+    type: 'public',
+    sender: await TexasHoldemGameRoom.peerIdAsync,
+    data: e,
+  });
+};
+
+const firePrivateEvent = async (e: TexasHoldemEvent, recipient: string) => {
+  await TexasHoldemGameRoom.emitEvent({
+    type: 'private',
+    sender: await TexasHoldemGameRoom.peerIdAsync,
+    recipient,
+    data: e,
+  });
+};
+
+const TexasHoldemGameRoomSingletonEventEmitter = new EventEmitter<GameRoomEvents<TexasHoldemEvent>>();
+TexasHoldemGameRoom.onEvent((e, fromWhom) => {
+  TexasHoldemGameRoomSingletonEventEmitter.emit('event', e.data, fromWhom);
+});
+
 export default function useTexasHoldem(props: {
   gameRoomId?: string;
 } & PeerServerOptions) {
+  const [peerId, setPeerId] = useState<string>();
+  useEffect(() => {
+    const peerIdListener = (peerIdAssigned: string) => setPeerId(peerIdAssigned);
+    TexasHoldemGameRoom.listener.on('connected', peerIdListener);
+    return () => {
+      TexasHoldemGameRoom.listener.off('connected', peerIdListener);
+    }
+  }, []);
+
+  const [status, setStatus] = useState<GameRoomStatus>();
+  useEffect(() => {
+    const statusListener = (statusChanged: GameRoomStatus) => setStatus(statusChanged);
+    TexasHoldemGameRoom.listener.on('status', statusListener);
+    return () => {
+      TexasHoldemGameRoom.listener.off('status', statusListener);
+    }
+  }, []);
+
   const [players, setPlayers] = useState<string[]>();
 
   const [deck, setDeck] = useState<EncodedDeck>();
@@ -65,30 +106,21 @@ export default function useTexasHoldem(props: {
   } = useDecryptionKeyPair();
 
   const {
-    playerId,
-    peerState,
-    members,
-    firePublicEvent,
-    firePrivateEvent,
-    gameEventEmitter,
-  } = useGameRoom<TexasHoldemEvent>(props);
-
-  const texasHoldemEventEmitter = useTexasHoldemEventEmitter(gameEventEmitter);
-
-  const {
     board,
     stage: boardStage,
     isDealingCards,
     dealingCards,
   } = useBoard(players, deck, decryptionKeyPairs);
-  const hole = useHole(players, deck, decryptionKeyPairs, playerId);
+  const hole = useHole(players, deck, decryptionKeyPairs, peerId);
+
+  const texasHoldemEventEmitter = useTexasHoldemEventEmitter(TexasHoldemGameRoomSingletonEventEmitter);
 
   const {
     setMentalPokerParticipants,
     setSharedPublicKey,
     handleIfAlice,
     handleIfBob,
-  } = useMentalPokerParticipants(playerId);
+  } = useMentalPokerParticipants(peerId);
 
   // start
   useTexasHoldemEvent(texasHoldemEventEmitter, 'start', useCallback((e: GameStartEvent) => {
@@ -167,7 +199,7 @@ export default function useTexasHoldem(props: {
           player.getIndividualKey(cardOffsets[0]).decryptionKey,
           player.getIndividualKey(cardOffsets[1]).decryptionKey,
         ];
-        console.info(`Dealing cards [ ${cardOffsets[0]}, ${cardOffsets[1]} ] to the player (peerId = ${playerId}).`);
+        console.info(`[${aliceOrBob}] dealing cards [ ${cardOffsets[0]}, ${cardOffsets[1]} ] to the player (peerId = ${playerId}).`);
         firePrivateEvent({
           type: 'card/decrypt',
           cardOffset: cardOffsets[0],
@@ -406,12 +438,12 @@ export default function useTexasHoldem(props: {
   }, [showdownResult, totalBetsPerPlayer]);
 
   const startGame = useCallback(() => {
-    if (members.length <= 1) {
+    if (TexasHoldemGameRoom.members.length <= 1) {
       console.warn('Cannot start the game because there is only one player.');
       return;
     }
     setPlayers(curr => {
-      const next = curr ? [...curr.slice(1), curr[0]] : members;
+      const next = curr ? [...curr.slice(1), curr[0]] : TexasHoldemGameRoom.members;
       firePublicEvent({
         type: 'start',
         players: next,
@@ -422,7 +454,7 @@ export default function useTexasHoldem(props: {
       });
       return next;
     });
-  }, [firePublicEvent, members]);
+  }, [firePublicEvent, TexasHoldemGameRoom.members]);
 
   const fireBet = useCallback((amount: number) => {
     firePublicEvent({
@@ -440,8 +472,8 @@ export default function useTexasHoldem(props: {
   }, [firePublicEvent]);
 
   return {
-    peerState,
-    playerId,
+    peerState: status,
+    playerId: peerId,
     players,
     potAmount,
     hole,

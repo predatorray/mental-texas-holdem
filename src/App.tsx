@@ -35,9 +35,7 @@ function App() {
         <div className="community-cards">
           {
             (() => {
-              if (peerState !== 'opened') {
-                return <>Connecting...</>;
-              } else if (players === undefined) {
+              if (players === undefined) {
                 return gameRoomId ? <>Waiting for the host to start the game...</> : <button onClick={() => startGame()}>start</button>;
               } else if (hole && board) {
                 return (

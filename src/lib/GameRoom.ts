@@ -4,6 +4,7 @@ import Deferred from "./Deferred";
 import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
 import { arrayBufferToHex, hexToArrayBuffer } from "./utils";
 import LifecycleManager from "./LifecycleManager";
+import {EventListener} from "./commonTypes";
 
 const PEER_CONNECT_OPTIONS = {
   reliable: true,
@@ -28,7 +29,7 @@ export interface PrivateGameEvent<T> {
   sender: string;
   recipient: string;
   data: T;
-};
+}
 
 export type GameEvent<T> = PublicGameEvent<T> | PrivateGameEvent<T>;
 
@@ -57,6 +58,9 @@ export type InternalEvent =
 ;
 
 export type GameRoomEvents<T> = {
+  status: (status: GameRoomStatus) => void;
+  connected: (peerId: string) => void;
+  members: (members: string[]) => void;
   event: (e: T, fromWhom: string) => void;
 }
 
@@ -124,12 +128,15 @@ export default class GameRoom<T> {
   private rsaPublicKeysOfOthers: Map<string, Deferred<CryptoKey>> = new Map();
 
   public peerId?: string;
+  private peerIdDeferred = new Deferred<string>();
+
   public hostId?: string;
 
   private readonly lcm = new LifecycleManager();
 
   constructor(peer: PeerLike, options?: GameRoomOptions) {
     this._status = 'NotReady';
+    this.emitter.emit('status', this._status);
     this.rsaKeyPairPromise = window.crypto.subtle.generateKey(
       {
         name: 'RSA-OAEP',
@@ -151,7 +158,10 @@ export default class GameRoom<T> {
       peer.on('open', this.lcm.register(peerId => {
         console.info(`Connected to the PeerJS server. (peerId = ${peerId}).`);
         this.peerId = peerId;
+        this.peerIdDeferred.resolve(peerId);
         this._status = 'PeerServerConnected';
+        this.emitter.emit('status', this._status);
+        this.emitter.emit('connected', peerId);
   
         if (!options?.hostId) {
           resolve(null);
@@ -163,6 +173,7 @@ export default class GameRoom<T> {
         hostConn.on('open', () => {
           console.info(`Connected to the remote peer (${options.hostId}) successfully.`);
           this._status = 'HostConnected';
+          this.emitter.emit('status', this._status);
           resolve(hostConn);
           return;
         });
@@ -209,11 +220,13 @@ export default class GameRoom<T> {
         };
         this.sendMessageToAllGuests(membersChangedEvent);
         this.publishPublicKeyToSingleGuest(conn.peer); // publish the host's public key again when there is a new guest
+        this.emitter.emit('members', this.members);
       }, listener => peer.off('connection', listener)));
     }
 
     peer.on('close', () => {
       this._status = 'Closed';
+      this.emitter.emit('status', this._status);
     });
   }
 
@@ -248,6 +261,14 @@ export default class GameRoom<T> {
 
   offEvent(handler?: (e: GameEvent<T>, fromWhom: string) => void) {
     this.emitter.off('event', handler);
+  }
+
+  get peerIdAsync() {
+    return this.peerIdDeferred.promise;
+  }
+
+  get listener(): EventListener<GameRoomEvents<GameEvent<T>>> {
+    return this.emitter;
   }
 
   private async sendMessageToSingleGuest(guestPeerId: string, data: any) {
@@ -313,6 +334,7 @@ export default class GameRoom<T> {
           break;
         case '_members':
           this.membersSyncedFromHost = e.data;
+          this.emitter.emit('members', this.members);
           this.publishPublicKey();
           break;
         case '_publicKey':
@@ -411,7 +433,9 @@ export default class GameRoom<T> {
   private async fireEventFromGuest(e: GameEvent<T>) {
     console.info(`Sending GameEvent ${e.type}.`);
     console.debug(e);
-    if (e.type === 'private') {
+    if (e.type === 'public') {
+      await this.sendMessageToHost(e);
+    } else if (e.recipient !== this.peerId) {
       // when sending private message from guest,
       // encryption is required, since host is acting as a relay, who can potentially see the plaintext
       const recipientRsaKeyDeferred = (() => {
@@ -436,10 +460,8 @@ export default class GameRoom<T> {
         cipherHex: encryptedHex,
       };
       await this.sendMessageToHost(encryptedEvent);
-    } else {
-      await this.sendMessageToHost(e);
     }
-    this.emitter.emit('event', e, this.peerId!); // echo
+    this.emitter.emit('event', e, await this.peerIdAsync); // echo
   }
 
   private async fireEventFromHost(e: GameEvent<T>) {
@@ -452,12 +474,12 @@ export default class GameRoom<T> {
           // encryption is not required, since the connection is end-to-end with a relay.
           await this.sendMessageToSingleGuest(e.recipient, e);
         } else {
-          this.emitter.emit('event', e, this.peerId!); // echo
+          this.emitter.emit('event', e, await this.peerIdAsync); // echo
         }
         break;
       case 'public':
         await this.sendMessageToAllGuests(e);
-        this.emitter.emit('event', e, this.peerId!); // echo
+        this.emitter.emit('event', e, await this.peerIdAsync); // echo
         break;
     }
   }
@@ -486,7 +508,7 @@ export default class GameRoom<T> {
   private async publicKeyEventAsync(): Promise<PublicKeyEvent> {
     return {
       type: '_publicKey',
-      sender: this.peerId!,
+      sender: await this.peerIdAsync,
       jwk: await this.jwk,
     };
   }

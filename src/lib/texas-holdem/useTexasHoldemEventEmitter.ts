@@ -1,7 +1,7 @@
 import EventEmitter from "eventemitter3";
 import { useMemo } from "react";
-import { GameRoomEvents } from "../useGameRoom";
 import { TexasHoldemEvent } from "./events";
+import {GameRoomEvents} from "../GameRoom";
 
 type TexasHoldemEvents = {[K in TexasHoldemEvent['type']]: (e: ({type: K} & TexasHoldemEvent), fromWhom: string) => void};
 
