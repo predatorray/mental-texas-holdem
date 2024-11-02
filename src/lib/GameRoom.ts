@@ -4,7 +4,7 @@ import Deferred from "./Deferred";
 import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
 import { arrayBufferToHex, hexToArrayBuffer } from "./utils";
 import LifecycleManager from "./LifecycleManager";
-import {EventListener} from "./commonTypes";
+import {EventListener} from "./types";
 
 const PEER_CONNECT_OPTIONS = {
   reliable: true,
@@ -57,7 +57,7 @@ export type InternalEvent =
   | EncryptedPrivateGameEvent
 ;
 
-export type GameRoomEvents<T> = {
+export interface GameRoomEvents<T> {
   status: (status: GameRoomStatus) => void;
   connected: (peerId: string) => void;
   members: (members: string[]) => void;
