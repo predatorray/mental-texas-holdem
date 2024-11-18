@@ -1,4 +1,4 @@
-import GameRoom, {GameEvent, GameRoomEvents} from "./GameRoom";
+import {GameEvent, GameRoomEvents, GameRoomStatus} from "./GameRoom";
 import {
   createPlayer,
   decodeStandardCard,
@@ -10,11 +10,11 @@ import {
   PublicKey,
   StandardCard
 } from "mental-poker-toolkit";
-import {StringEncodedDeck} from "./texas-holdem/events";
 import {CARDS} from "./rules";
 import Deferred from "./Deferred";
 import {EventListener} from "./types";
 import EventEmitter from "eventemitter3";
+import LifecycleManager from "./LifecycleManager";
 
 export interface MentalPokerRoundSettings {
   alice: string;
@@ -27,6 +27,8 @@ export interface RoundStartEvent {
   round: number;
   mentalPokerSettings: MentalPokerRoundSettings;
 }
+
+export type StringEncodedDeck = string[];
 
 export interface DeckStep1Event {
   type: 'deck/step1';
@@ -99,6 +101,10 @@ class MentalPokerRound {
 }
 
 export interface MentalPokerGameRoomEvents {
+  connected: (peerId: string) => void;
+  status: (status: GameRoomStatus) => void;
+  members: (members: string[]) => void;
+
   shuffled: () => void;
   card: (round: number, offset: number, card: StandardCard) => void;
 }
@@ -107,19 +113,27 @@ export interface GameRoomLike<T> {
   listener: EventListener<GameRoomEvents<GameEvent<T>>>;
   peerIdAsync: Promise<string>;
   emitEvent: (e: GameEvent<T>) => Promise<void>;
+  members: string[];
+  close: () => void;
 }
 
 export default class MentalPokerGameRoom {
   private readonly emitter = new EventEmitter<MentalPokerGameRoomEvents>();
-
   private readonly gameRoom: GameRoomLike<MentalPokerEvent>;
   private round: number = 0;
 
   private dataByRounds: Map<number, MentalPokerRound> = new Map();
 
-  constructor(gameRoom: GameRoomLike<MentalPokerEvent> | GameRoom<MentalPokerEvent>) {
+  private readonly lcm = new LifecycleManager();
+
+  constructor(gameRoom: GameRoomLike<MentalPokerEvent | any>) {
     this.gameRoom = gameRoom;
-    this.gameRoom.listener.on('event', ({ data }) => {
+
+    this.propagate('status');
+    this.propagate('connected');
+    this.propagate('members');
+
+    this.gameRoom.listener.on('event', this.lcm.register(({ data }) => {
       switch (data.type) {
         case 'start':
           this.handleRoundStartEvent(data);
@@ -140,7 +154,7 @@ export default class MentalPokerGameRoom {
           this.handleCardDecrypted(data);
           break;
       }
-    });
+    }, listener => this.gameRoom.listener.off('event', listener)));
   }
 
   async startNewRound(settings: MentalPokerRoundSettings) {
@@ -156,6 +170,10 @@ export default class MentalPokerGameRoom {
     });
 
     return newRound;
+  }
+
+  get members() {
+    return this.gameRoom.members;
   }
 
   private getOrCreateDataForRound(round: number): MentalPokerRound {
@@ -261,6 +279,17 @@ export default class MentalPokerGameRoom {
 
   get listener(): EventListener<MentalPokerGameRoomEvents> {
     return this.emitter;
+  }
+
+  close() {
+    this.gameRoom.close();
+    this.lcm.close();
+  }
+
+  private propagate(eventName: (keyof (GameRoomEvents<MentalPokerEvent> | MentalPokerGameRoomEvents))) {
+    this.gameRoom.listener.on(eventName, this.lcm.register((...args) => {
+      this.emitter.emit(eventName, ...args);
+    }, listener => this.gameRoom.listener.off(eventName, listener)));
   }
 
   private async handleRoundStartEvent(e: RoundStartEvent) {

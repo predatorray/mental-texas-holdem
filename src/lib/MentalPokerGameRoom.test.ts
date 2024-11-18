@@ -8,6 +8,7 @@ class MockGameRoom implements GameRoomLike<MentalPokerEvent> {
   listener = new EventEmitter<GameRoomEvents<GameEvent<MentalPokerEvent>>>();
   peerIdAsync: Promise<string>;
   peerIdDeferred = new Deferred<string>();
+  members: string[] = [];
 
   eventsEmitted: Array<GameEvent<MentalPokerEvent>> = [];
 
@@ -35,6 +36,9 @@ class MockGameRoom implements GameRoomLike<MentalPokerEvent> {
   pair(another: MockGameRoom) {
     this.paired = another;
     another.paired = this;
+  }
+
+  close(): void {
   }
 }
 

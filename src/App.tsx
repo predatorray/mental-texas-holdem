@@ -4,7 +4,8 @@ import './App.css';
 
 import CardImage from './components/CardImage';
 import useTexasHoldem from './lib/texas-holdem/useTexasHoldem';
-import TexasHoldemGameRoom from "./lib/texas-holdem/TexasHoldemGameRoom";
+import useChatRoom from "./lib/useChatRoom";
+import {HostId} from "./lib/setup";
 
 function App() {
   const {
@@ -19,10 +20,11 @@ function App() {
     startGame,
     bankrolls,
     potAmount,
-    totalBetsPerPlayer,
+    myBetAmount,
     showdownResultOfLastRound,
     actions,
   } = useTexasHoldem();
+  const messages = useChatRoom();
   const [betAmount, setBetAmount] = useState<string>('0');
   return (
     <div className="App">
@@ -38,12 +40,12 @@ function App() {
                   if (!playerId) {
                     return null;
                   }
-                  if (TexasHoldemGameRoom.hostId) {
+                  if (HostId) {
                     return window.location.href;
                   }
                   return `${window.location.href}?gameRoomId=${playerId}`;
                 })();
-                return TexasHoldemGameRoom.hostId
+                return HostId
                   ? (
                     <>
                       <p>Share the link: {roomLink ? <a href={roomLink} target="_blank">{roomLink}</a> : '...'}</p>
@@ -108,8 +110,8 @@ function App() {
           ) : <></>
         }
         {
-          players && totalBetsPerPlayer && playerId && totalBetsPerPlayer.get(playerId) !== undefined ? (
-            <div>Bet: ${totalBetsPerPlayer.get(playerId)}</div>
+          players ? (
+            <div>Bet: ${myBetAmount}</div>
           ) : <></>
         }
         {
