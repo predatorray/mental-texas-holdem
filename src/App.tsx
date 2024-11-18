@@ -21,7 +21,7 @@ function App() {
     bankrolls,
     potAmount,
     myBetAmount,
-    showdownResultOfLastRound,
+    lastWinningResult,
     actions,
   } = useTexasHoldem();
   const messages = useChatRoom();

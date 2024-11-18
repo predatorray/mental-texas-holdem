@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 import {GameRoomStatus} from "../GameRoom";
 import {TexasHoldem} from "../setup";
 import {Board, Hole} from "../rules";
-import {ShowdownResult, WinningResult} from "./TexasHoldemGameRoom";
+import {WinningResult} from "./TexasHoldemGameRoom";
 
 function useMyPlayerId() {
   const [peerId, setPeerId] = useState<string>();
@@ -212,16 +212,18 @@ function useMyBetAmount(myPlayerId: string | undefined) {
   };
 }
 
-function useWinner() {
+function useShowdownAndWinner() {
+  const [lastWinningResult, setLastWinningResult] = useState<WinningResult>();
   useEffect(() => {
     const winnerListener = (result: WinningResult) => {
-      // TODO
+      setLastWinningResult(result);
     };
     TexasHoldem.listener.on('winner', winnerListener);
     return () => {
       TexasHoldem.listener.off('winner', winnerListener);
     };
   }, []);
+  return lastWinningResult;
 }
 
 export default function useTexasHoldem() {
@@ -251,8 +253,6 @@ export default function useTexasHoldem() {
     whoseTurn,
     resetWhoseTurn,
   } = useWhoseTurn();
-
-  const [showdownResultOfLastRound, setShowdownResultOfLastRound] = useState<ShowdownResult['showdown']>();
 
   const fireBet = useCallback(async (amount: number) => {
     if (!currentRound) {
@@ -286,6 +286,8 @@ export default function useTexasHoldem() {
     });
   };
 
+  const lastWinningResult = useShowdownAndWinner();
+
   return {
     peerState: status,
     playerId: myPlayerId,
@@ -300,7 +302,7 @@ export default function useTexasHoldem() {
     startGame: startNewRound,
     bankrolls,
     myBetAmount,
-    showdownResultOfLastRound,
+    lastWinningResult,
     actions: {
       fireBet,
       fireFold,
