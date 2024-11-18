@@ -30,7 +30,6 @@ function useStatus() {
 
 function useGameSetup() {
   const [currentRound, setCurrentRound] = useState<number>();
-
   const [players, setPlayers] = useState<string[]>();
 
   useEffect(() => {
@@ -43,6 +42,18 @@ function useGameSetup() {
       TexasHoldem.listener.off('players', newRoundListener);
     };
   }, []);
+
+  useEffect(() => {
+    const winnerListener = (result: WinningResult) => {
+      if (currentRound === result.round) {
+        setPlayers(undefined);
+      }
+    };
+    TexasHoldem.listener.on('winner', winnerListener);
+    return () => {
+      TexasHoldem.listener.off('winner', winnerListener);
+    };
+  }, [currentRound]);
 
   const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
   const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
@@ -83,17 +94,23 @@ export type BoardStage =
   | 'River'
   ;
 
-function useBoard() {
-  const [board, setBoard] = useState<Board>([]);
+function useBoard(round: number | undefined) {
+  const [boardPerRound, setBoardPerRound] = useState<Map<number, Board>>(new Map());
   useEffect(() => {
     const boardListener = (round: number, board: Board) => {
-      setBoard(board);
+      setBoardPerRound(prev => {
+        const next = new Map(prev);
+        next.set(round, board);
+        return next;
+      });
     }
     TexasHoldem.listener.on('board', boardListener);
     return () => {
       TexasHoldem.listener.off('board', boardListener);
     };
   }, []);
+
+  const board = useMemo(() => round ? (boardPerRound.get(round) ?? []) : [], [boardPerRound, round]);
 
   const boardStage: BoardStage | undefined = useMemo(() => {
     switch (board.length) {
@@ -108,23 +125,22 @@ function useBoard() {
     }
   }, [board]);
 
-  const resetBoard = useCallback(() => setBoard([]), []);
-
   return {
     board,
     boardStage,
-    resetBoard,
   };
 }
 
-function useHoles(myPlayerId: string | undefined) {
-  const [holesPerPlayer, setHolesPerPlayer] = useState<Map<string, Hole>>(new Map());
+function useHoles(round: number | undefined, myPlayerId: string | undefined) {
+  const [holesPerPlayerPerRound, setHolesPerPlayerPerRound] = useState<Map<number, Map<string, Hole>>>(new Map());
   useEffect(() => {
     const holeListener = (round: number, whose: string, hole: Hole) => {
-      setHolesPerPlayer(prev => {
-        const newHolesPerPlayer = new Map<string, Hole>(prev);
-        newHolesPerPlayer.set(whose, hole);
-        return newHolesPerPlayer;
+      setHolesPerPlayerPerRound(prev => {
+        const next = new Map(prev);
+        const holesPerPlayer: Map<string, Hole> = next.get(round) ?? new Map();
+        holesPerPlayer.set(whose, hole);
+        next.set(round, holesPerPlayer);
+        return next;
       });
     }
     TexasHoldem.listener.on('hole', holeListener);
@@ -133,28 +149,31 @@ function useHoles(myPlayerId: string | undefined) {
     };
   }, []);
 
+  const holesPerPlayer = useMemo(() =>
+      round ? holesPerPlayerPerRound.get(round) : undefined,
+    [holesPerPlayerPerRound, round]);
+
   const myHole: Hole | undefined = useMemo(() => {
-    if (!myPlayerId) {
+    if (!myPlayerId || !holesPerPlayer) {
       return undefined;
     }
     return holesPerPlayer.get(myPlayerId);
   }, [holesPerPlayer, myPlayerId]);
 
-  const resetHole = useCallback(() => {
-    setHolesPerPlayer(new Map());
-  }, []);
-
   return {
     myHole,
-    resetHole,
   }
 }
 
-function useWhoseTurn() {
-  const [whoseTurn, setWhoseTurn] = useState<string | null>(null);
+function useWhoseTurn(round: number | undefined) {
+  const [whoseTurnPerRound, setWhoseTurnPerRound] = useState<Map<number, string | null>>(new Map());
   useEffect(() => {
     const whoseTurnListener = (round: number, whoseTurn: string | null) => {
-      setWhoseTurn(whoseTurn);
+      setWhoseTurnPerRound(prev => {
+        const next = new Map(prev);
+        next.set(round, whoseTurn);
+        return next;
+      });
     };
     TexasHoldem.listener.on('whoseTurn', whoseTurnListener);
     return () => {
@@ -162,14 +181,9 @@ function useWhoseTurn() {
     };
   }, []);
 
-  const resetWhoseTurn = useCallback(() => {
-    setWhoseTurn(null);
-  }, []);
+  const whoseTurn = useMemo(() => round ? whoseTurnPerRound.get(round) ?? null : null, [round, whoseTurnPerRound])
 
-  return {
-    whoseTurn,
-    resetWhoseTurn,
-  }
+  return whoseTurn;
 }
 
 function usePotAmount() {
@@ -187,13 +201,17 @@ function usePotAmount() {
   return potAmount;
 }
 
-function useMyBetAmount(myPlayerId: string | undefined) {
-  const [myBetAmount, setMyBetAmount] = useState<number>(0);
+function useMyBetAmount(round: number | undefined, myPlayerId: string | undefined) {
+  const [myBetAmountPerRound, setMyBetAmountPerRound] = useState<Map<number, number>>(new Map());
 
   useEffect(() => {
     const betListener = (round: number, amount: number, who: string) => {
       if (who === myPlayerId) {
-        setMyBetAmount(prev => prev + amount);
+        setMyBetAmountPerRound(prev => {
+          const next = new Map(prev);
+          next.set(round, (next.get(round) ?? 0) + amount);
+          return next;
+        })
       }
     };
     TexasHoldem.listener.on('bet', betListener);
@@ -202,14 +220,7 @@ function useMyBetAmount(myPlayerId: string | undefined) {
     };
   }, [myPlayerId]);
 
-  const resetMyBetAmount = useCallback(() => {
-    setMyBetAmount(0);
-  }, []);
-
-  return {
-    myBetAmount,
-    resetMyBetAmount,
-  };
+  return useMemo(() => round ? myBetAmountPerRound.get(round) : undefined, [myBetAmountPerRound, round]);
 }
 
 function useShowdownAndWinner() {
@@ -241,18 +252,13 @@ export default function useTexasHoldem() {
 
   const {
     board,
-    resetBoard,
-  } = useBoard();
+  } = useBoard(currentRound);
 
   const {
     myHole,
-    resetHole,
-  } = useHoles(myPlayerId);
+  } = useHoles(currentRound, myPlayerId);
 
-  const {
-    whoseTurn,
-    resetWhoseTurn,
-  } = useWhoseTurn();
+  const whoseTurn = useWhoseTurn(currentRound);
 
   const fireBet = useCallback(async (amount: number) => {
     if (!currentRound) {
@@ -269,18 +275,9 @@ export default function useTexasHoldem() {
   }, [currentRound]);
 
   const potAmount = usePotAmount();
-  const {
-    myBetAmount,
-    resetMyBetAmount,
-  } = useMyBetAmount(myPlayerId);
+  const myBetAmount = useMyBetAmount(currentRound, myPlayerId);
 
   const startNewRound = async () => {
-    // cleanup
-    resetBoard();
-    resetHole();
-    resetMyBetAmount();
-    resetWhoseTurn();
-    // TODO setShowdownResultOfLastRound if present
     await TexasHoldem.startNewRound({
       initialFundAmount: 100, // TODO read from config
     });

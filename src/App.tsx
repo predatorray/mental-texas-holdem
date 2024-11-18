@@ -25,7 +25,7 @@ function App() {
     actions,
   } = useTexasHoldem();
   const messages = useChatRoom();
-  const [betAmount, setBetAmount] = useState<string>('0');
+  const [betAmountInput, setBetAmountInput] = useState<string>('0');
   return (
     <div className="App">
       <div className="table">
@@ -80,16 +80,16 @@ function App() {
         {
           players && playerId && whoseTurn === playerId ? (
             <div>
-              <input type="text" value={betAmount} onChange={(e) => {
-                setBetAmount(e.target.value);
+              <input type="text" value={betAmountInput} onChange={(e) => {
+                setBetAmountInput(e.target.value);
               }}></input>
               <button onClick={() => {
-                actions.fireBet(Number(betAmount));
-                setBetAmount('0');
+                actions.fireBet(Number(betAmountInput));
+                setBetAmountInput('0');
               }}>call</button>
               <button onClick={() => {
                 actions.fireFold();
-                setBetAmount('0');
+                setBetAmountInput('0');
               }}>fold</button>
             </div>
           ) : <></>
