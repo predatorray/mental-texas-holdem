@@ -412,7 +412,7 @@ export class TexasHoldemGameRoom {
     await this.handleBet(e.round, e.amount, who);
   }
 
-  private async handleBet(roundNo: number, raisedAmount: number, who: string, isSbBb?: boolean) {
+  private async handleBet(roundNo: number, raisedAmount: number, who: string, isSbBbFirstBet?: boolean) {
     if (raisedAmount < 0) {
       console.warn(`Bet amount cannot be negative: ${raisedAmount}`);
       return;
@@ -438,7 +438,7 @@ export class TexasHoldemGameRoom {
       return;
     }
 
-    if (!isSbBb) {
+    if (!isSbBbFirstBet) {
       if (totalBetAmount === leastTotalBetAmount) {
         // call or check
         round.calledPlayers.add(who);
@@ -449,6 +449,10 @@ export class TexasHoldemGameRoom {
       }
     }
 
+    if (fund === raisedAmount) {
+      round.allInPlayers.add(who);
+    }
+
     pot.set(who, totalBetAmount);
     this.updateFundOfPlayer(who, fund - raisedAmount);
 
@@ -456,7 +460,7 @@ export class TexasHoldemGameRoom {
     const potTotalAmount = Array.from(round.pot.values()).reduce((a, b) => a + b, 0);
     this.emitter.emit('pot', roundNo, potTotalAmount);
 
-    if (!isSbBb) {
+    if (!isSbBbFirstBet) {
       await this.continueUnlessAllSet(roundNo, round);
     }
   }
@@ -525,6 +529,7 @@ export class TexasHoldemGameRoom {
       if (roundData.stage === Stage.RIVER) {
         await this.showdown(round, roundData);
       } else {
+        // FIXME: if everyone else is all-in
         this.emitter.emit('whoseTurn', round, players[0]);
       }
     } else {

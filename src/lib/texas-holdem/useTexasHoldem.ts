@@ -181,9 +181,7 @@ function useWhoseTurn(round: number | undefined) {
     };
   }, []);
 
-  const whoseTurn = useMemo(() => round ? whoseTurnPerRound.get(round) ?? null : null, [round, whoseTurnPerRound])
-
-  return whoseTurn;
+  return useMemo(() => round ? whoseTurnPerRound.get(round) ?? null : null, [round, whoseTurnPerRound])
 }
 
 function usePotAmount() {

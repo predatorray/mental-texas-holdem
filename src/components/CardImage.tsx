@@ -12,7 +12,7 @@ export default function CardImage(props: CardImageProps) {
       className,
       ...otherAttributes
     } = props;
-    return <img className={className ? `card ${className}` : 'card'} src={`${process.env.PUBLIC_URL}/cards/back.svg`} alt={alt ?? 'Back'} {...otherAttributes}/>;;
+    return <img className={className ? `card ${className}` : 'card'} src={`${process.env.PUBLIC_URL}/cards/back.svg`} alt={alt ?? 'Back'} {...otherAttributes}/>;
   }
 
   const {

@@ -37,6 +37,12 @@
   }
 }
 
+.chip {
+  width: 30px;
+  height: 30px;
+  transform: rotateX(30deg);
+}
+
 .card {
   width: 100px;
   height: 150px; /* x1.5 */
@@ -45,29 +51,133 @@
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
 }
 
+.opponents {
+  position: absolute;
+  left: 50%;
+  top: 60px;
+  transform: translate(-50%, 0);
+  display: flex;
+  justify-content: space-around;
+  width: 80%;
+}
+
+.opponents .opponent {
+  display: inline-block;
+  margin-left: 10px;
+  margin-right: 10px;
+  perspective: 128px;
+  min-width: 128px;
+}
+
+.opponents .opponent:first-child {
+  margin-top: 30px;
+}
+
+.opponents .opponent:last-child {
+  margin-top: 30px;
+}
+
+.opponents .opponent .avatar {
+  margin: 10px 40px;
+}
+
+.opponents .opponent .bankroll {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-family: monospace;
+}
+
+.opponents .opponent .card {
+  margin-left: 2px;
+  margin-right: 2px;
+  width: 60px;
+  height: 90px; /* x1.5 */
+  transform: rotateX(-2deg);
+}
+
+.opponents .opponent:first-child .card {
+  transform: rotate3d(100, -100, 0, -10deg)
+}
+
+.opponents .opponent:last-child .card {
+  transform: rotate3d(-100, -100, 0, 10deg);
+}
+
+.bankroll {
+  background-color: #e8ffeb;
+  border-radius: 5px;
+}
+
 .table {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 40%;
   transform: translate(-50%, -50%);
   text-align: center;
   width: 600px; /* (width(.card) + margin-x(.card)) * 5 */
 }
 
+.pot {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: monospace;
+  font-size: 20px;
+}
+
+.community-cards {
+  perspective: 600px;
+}
+
 .community-cards .card {
   margin-left: 10px;
   margin-right: 10px;
+  transform-style: preserve-3d;
+  transform: rotateX(5deg);
+}
+
+.bet-amount {
+  font-family: monospace;
+  font-size: 14px;
+  margin: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hand-cards {
   position: absolute;
   left: 50%;
-  bottom: 20px;
+  bottom: 40px;
   transform: translate(-50%, 0);
+  perspective: 220px;
+}
+
+.hand-cards .avatar {
+  margin: 10px 80px;
+}
+
+.hand-cards .bankroll {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-family: monospace;
+  font-size: 16px;
 }
 
 .hand-cards .card {
   margin-left: 4px;
   margin-right: 4px;
+  transform: rotateX(-5deg);
+}
+
+.actions {
+  margin-bottom: 25px;
+}
+
+.actions button {
+  margin-left: 5px;
+  margin-right: 5px;
 }
 
