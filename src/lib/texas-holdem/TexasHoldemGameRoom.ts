@@ -41,9 +41,10 @@ export interface TexasHoldemGameRoomEvents {
   board: (round: number, board: Board) => void;
   hole: (round: number, whose: string, hole: Hole) => void;
   bet: (round: number, amount: number, who: string) => void;
+  fold: (round: number, who: string) => void;
   pot: (round: number, amount: number) => void;
 
-  whoseTurn: (round: number, whose: string | null) => void;
+  whoseTurn: (round: number, whose: string | null, actionMeta?: {callAmount: number}) => void;
   allSet: (round: number) => void;
   fund: (fund: number, whose: string) => void;
   winner: (result: WinningResult) => void;
@@ -405,7 +406,7 @@ export class TexasHoldemGameRoom {
     await this.handleBet(e.round, 2, e.players[1], true); // bb bets 2
 
     const playerNextToBb = e.players[2 % e.players.length];
-    this.emitter.emit('whoseTurn', e.round, playerNextToBb);
+    this.emitter.emit('whoseTurn', e.round, playerNextToBb, {callAmount: e.players.length === 2 ? 1 : 2});
   }
 
   private async handleBetEvent(e: BetEvent, who: string) {
@@ -471,6 +472,7 @@ export class TexasHoldemGameRoom {
       return;
     }
     round.foldPlayers.add(who);
+    this.emitter.emit('fold', e.round, who);
 
     const playersLeft = (await round.playersOrdered.promise).filter(p => !round.foldPlayers.has(p));
     if (playersLeft.length === 1) {
@@ -529,8 +531,8 @@ export class TexasHoldemGameRoom {
       if (roundData.stage === Stage.RIVER) {
         await this.showdown(round, roundData);
       } else {
-        // FIXME: if everyone else is all-in
-        this.emitter.emit('whoseTurn', round, players[0]);
+        // FIXME: if everyone else is all-in, show all the community cards
+        this.emitter.emit('whoseTurn', round, players[0], {callAmount: 0});
       }
     } else {
       const playerNextToTheLastOneWhoCalled: string = (() => {
@@ -548,9 +550,14 @@ export class TexasHoldemGameRoom {
             return player;
           }
         }
-        throw new Error('unreachable');
+        throw new Error('unreachable'); // FIXME: if everyone else is all-in
       })();
-      this.emitter.emit('whoseTurn', round, playerNextToTheLastOneWhoCalled);
+
+      const pot = roundData.pot;
+      const currentBetAmount = pot.get(playerNextToTheLastOneWhoCalled) ?? 0;
+      const leastTotalBetAmount = Array.from(pot.values()).reduce((a, b) => Math.max(a, b), 0);
+      const callAmount = leastTotalBetAmount - currentBetAmount;
+      this.emitter.emit('whoseTurn', round, playerNextToTheLastOneWhoCalled, {callAmount});
     }
   }
 
