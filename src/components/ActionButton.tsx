@@ -7,23 +7,11 @@ type ActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export default function ActionButton(props: ActionButtonProps) {
   const {
     children,
+    className,
     ...otherProps
   } = props;
   return (
-    <button className="action-button" style={{
-      display: 'inline-flex',
-      justifyContent: 'center',
-      outlineWidth: 0,
-      textAlign: 'center',
-      padding: '6px 8px',
-      minWidth: 64,
-      border: 'none',
-      backgroundColor: 'white',
-      borderRadius: 10,
-      cursor: 'pointer',
-      fontFamily: 'monospace',
-      fontWeight: 'bold',
-    }} {...otherProps}>
+    <button className={className ? `${className} action-button` : className} {...otherProps}>
       {children}
     </button>
   )

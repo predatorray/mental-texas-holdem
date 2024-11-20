@@ -51,6 +51,11 @@
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
 }
 
+.bankroll {
+  background-color: #efefef;
+  border-radius: 5px;
+}
+
 .opponents {
   position: absolute;
   left: 50%;
@@ -69,11 +74,11 @@
   min-width: 128px;
 }
 
-.opponents .opponent:first-child {
+.opponents .opponent:first-child:not(:last-child) {
   margin-top: 30px;
 }
 
-.opponents .opponent:last-child {
+.opponents .opponent:last-child:not(:first-child) {
   margin-top: 30px;
 }
 
@@ -95,17 +100,12 @@
   transform: rotateX(-2deg);
 }
 
-.opponents .opponent:first-child .card {
-  transform: rotate3d(100, -100, 0, -10deg)
+.opponents .opponent:first-child:not(:last-child) .card {
+  transform: rotate3d(100, -100, 0, -5deg)
 }
 
-.opponents .opponent:last-child .card {
-  transform: rotate3d(-100, -100, 0, 10deg);
-}
-
-.bankroll {
-  background-color: #e8ffeb;
-  border-radius: 5px;
+.opponents .opponent:last-child:not(:first-child) .card {
+  transform: rotate3d(-100, -100, 0, 5deg);
 }
 
 .table {
@@ -125,6 +125,8 @@
   justify-content: center;
   font-family: monospace;
   font-size: 20px;
+  font-weight: bold;
+  color: #efefef;
 }
 
 .community-cards {
@@ -141,6 +143,8 @@
 .bet-amount {
   font-family: monospace;
   font-size: 14px;
+  font-weight: bold;
+  color: #efefef;
   margin: 10px;
   display: flex;
   align-items: center;
@@ -157,13 +161,17 @@
 
 .hand-cards .avatar {
   margin: 10px 80px;
+  max-height: 80px;
 }
 
 .hand-cards .bankroll {
-  margin-top: 10px;
-  margin-bottom: 10px;
+  max-width: 220px;
+  margin: 10px auto;
+
   font-family: monospace;
   font-size: 16px;
+
+  background-color: #f6f6f6;
 }
 
 .hand-cards .card {
@@ -174,10 +182,29 @@
 
 .actions {
   margin-bottom: 25px;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
 }
 
-.actions button {
+.actions .action-button {
   margin-left: 5px;
   margin-right: 5px;
+
+  justify-content: center;
+  outline-width: 0;
+  text-align: center;
+  padding: 6px 8px;
+  min-width: 64px;
+  border: 1px #f6f6f6 solid;
+  background-color:rgba(0, 0, 0, 0.2);
+  color: #f6f6f6;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: monospace;
+  font-weight: bold;
 }
 
+.actions .action-button:hover {
+  background-color:rgba(0, 0, 0, 0.5);
+}

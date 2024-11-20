@@ -18,5 +18,5 @@ code {
   width: 100%;
   height: 100%;
   background-color: #45a173;
-  background-image: linear-gradient(to top, #45a173, #66a988);
+  background-image: radial-gradient(ellipse at bottom, #45a173, #143022);
 }

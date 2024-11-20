@@ -69,8 +69,12 @@ export default function AppSample() {
           <ChipImage/> $10
         </div>
         <div className="actions">
-          <ActionButton className="action-call">call</ActionButton>
-          <ActionButton className="action-fold">fold</ActionButton>
+          <ActionButton className="action-call">CALL</ActionButton>
+          <ActionButton className="action-raise">RAISE<br/>1/2 pot</ActionButton>
+          <ActionButton className="action-raise">RAISE<br/>1 pot</ActionButton>
+          <ActionButton className="action-raise">RAISE<br/>2 pot</ActionButton>
+          <ActionButton className="action-all-in">ALL-IN</ActionButton>
+          <ActionButton className="action-fold">FOLD</ActionButton>
         </div>
 
         <Avatar src="https://api.multiavatar.com/Z.svg"/>
