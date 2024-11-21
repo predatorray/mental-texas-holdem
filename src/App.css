@@ -38,16 +38,51 @@
 }
 
 .chip {
-  width: 30px;
-  height: 30px;
+  width: 12px;
+  height: 12px;
+
+  @media screen and (min-height: 400px) {
+    width: 16px;
+    height: 16px;
+  }
+
+  @media screen and (min-height: 800px) {
+    width: 26px;
+    height: 26px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    width: 30px;
+    height: 30px;
+  }
+
   transform: rotateX(30deg);
 }
 
 .card {
-  width: 100px;
-  height: 150px; /* x1.5 */
+  width: 40px;
+  height: 60px; /* x1.5 */
+  border-radius: 4px;
+
+  @media screen and (min-height: 400px) {
+    width: 60px;
+    height: 90px; /* x1.5 */
+    border-radius: 6px;
+  }
+
+  @media screen and (min-height: 800px) {
+    width: 80px;
+    height: 120px; /* x1.5 */
+    border-radius: 8px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    width: 100px;
+    height: 150px; /* x1.5 */
+    border-radius: 10px;
+  }
+
   background-color: #fff;
-  border-radius: 10px;
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);
 }
 
@@ -59,7 +94,21 @@
 .opponents {
   position: absolute;
   left: 50%;
-  top: 60px;
+
+  top: 5px;
+
+  @media screen and (min-height: 400px) {
+    top: 10px;
+  }
+
+  @media screen and (min-height: 800px) {
+    top: 30px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    top: 60px;
+  }
+
   transform: translate(-50%, 0);
   display: flex;
   justify-content: space-around;
@@ -86,18 +135,36 @@
   margin: 10px 40px;
 }
 
+.opponents .opponent .avatar img {
+  height: 48px;
+}
+
 .opponents .opponent .bankroll {
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin: 10px auto;
   font-family: monospace;
 }
 
 .opponents .opponent .card {
   margin-left: 2px;
   margin-right: 2px;
-  width: 60px;
-  height: 90px; /* x1.5 */
+  width: 24px; /* width(.card) * 0.6 */
+  height: 36px; /* x1.5 */
   transform: rotateX(-2deg);
+
+  @media screen and (min-height: 400px) {
+    width: 36px;
+    height: 54px; /* x1.5 */
+  }
+
+  @media screen and (min-height: 800px) {
+    width: 48px;
+    height: 72px; /* x1.5 */
+}
+
+  @media screen and (min-height: 1000px) {
+    width: 60px;
+    height: 90px; /* x1.5 */
+  }
 }
 
 .opponents .opponent:first-child:not(:last-child) .card {
@@ -111,20 +178,56 @@
 .table {
   position: absolute;
   left: 50%;
-  top: 40%;
+  top: 60%;
+
+  @media screen and (min-height: 400px) {
+    top: 55%;
+  }
+
+  @media screen and (min-height: 800px) {
+    top: 50%;
+  }
+
+  @media screen and (min-height: 1000px) {
+    top: 45%;
+  }
+
+  @media screen and (min-height: 1200px) {
+    top: 40%;
+  }
+
   transform: translate(-50%, -50%);
   text-align: center;
   width: 600px; /* (width(.card) + margin-x(.card)) * 5 */
 }
 
 .pot {
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: 1px;
+  margin-bottom: 1px;
+  font-size: 12px;
+
+  @media screen and (min-height: 400px) {
+    margin-top: 2px;
+    margin-bottom: 2px;
+    font-size: 16px;
+  }
+
+  @media screen and (min-height: 800px) {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    font-size: 18px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 20px;
+  }
+
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: monospace;
-  font-size: 20px;
   font-weight: bold;
   color: #efefef;
 }
@@ -134,27 +237,83 @@
 }
 
 .community-cards .card {
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 2px;
+  margin-right: 2px;
+
+  @media screen and (min-height: 400px) {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  @media screen and (min-height: 800px) {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    margin-left: 10px;
+    margin-right: 10px;
+  }
+
   transform-style: preserve-3d;
   transform: rotateX(5deg);
 }
 
 .bet-amount {
   font-family: monospace;
-  font-size: 14px;
+  font-size: 8px;
+
+  @media screen and (min-height: 400px) {
+    font-size: 10px;
+  }
+
+  @media screen and (min-height: 800px) {
+    font-size: 12px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    font-size: 14px;
+  }
+
   font-weight: bold;
   color: #efefef;
-  margin: 10px;
+
+  margin: 1px;
+
+  @media screen and (min-height: 400px) {
+    margin: 2px;
+  }
+
+  @media screen and (min-height: 800px) {
+    margin: 4px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    margin: 10px;
+  }
+
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .hand-cards {
+  bottom: 10px;
+
+  @media screen and (min-height: 400px) {
+    bottom: 20px;
+  }
+
+  @media screen and (min-height: 800px) {
+    bottom: 30px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    bottom: 40px;
+  }
+
   position: absolute;
   left: 50%;
-  bottom: 40px;
   transform: translate(-50%, 0);
   perspective: 220px;
 }
@@ -164,14 +323,47 @@
   max-height: 80px;
 }
 
+.hand-cards .avatar img {
+  height: 56px;
+}
+
 .hand-cards .bankroll {
-  max-width: 220px;
+  max-width: 90px; /* width(.card) * 2 + margin */
+
+  @media screen and (min-height: 400px) {
+    max-width: 130px;
+  }
+
+  @media screen and (min-height: 800px) {
+    max-width: 170px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    max-width: 210px;
+  }
+
   margin: 10px auto;
 
   font-family: monospace;
   font-size: 16px;
 
   background-color: #f6f6f6;
+}
+
+.opponents .opponent .bankroll {
+  max-width: 58px; /* width(.card) * 2 + margin */
+
+  @media screen and (min-height: 400px) {
+    max-width: 82px;
+  }
+
+  @media screen and (min-height: 800px) {
+    max-width: 106px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    max-width: 130px;
+  }
 }
 
 .hand-cards .card {
@@ -188,13 +380,30 @@
 }
 
 .action-button {
+  font-size: 10px;
+  padding: 1px 2px;
+
+  @media screen and (min-height: 400px) {
+    font-size: 12px;
+    padding: 3px 4px;
+  }
+
+  @media screen and (min-height: 800px) {
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    font-size: 16px;
+    padding: 6px 8px;
+  }
+
   margin-left: 5px;
   margin-right: 5px;
 
   justify-content: center;
   outline-width: 0;
   text-align: center;
-  padding: 6px 8px;
   min-width: 64px;
   border: 1px #f6f6f6 solid;
   background-color:rgba(0, 0, 0, 0.2);
@@ -210,16 +419,27 @@
 }
 
 .staging {
-  /*background-color: #fff;*/
-  /*border-radius: 10px;*/
-  /*box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12);*/
+  margin: 0;
+  padding: 10px;
 
-  margin: 20px;
-  padding: 20px;
+  @media screen and (min-height: 400px) {
+    margin: 10px;
+    padding: 10px;
+  }
+
+  @media screen and (min-height: 800px) {
+    margin: 16px;
+    padding: 16px;
+  }
+
+  @media screen and (min-height: 1000px) {
+    margin: 20px;
+    padding: 20px;
+  }
 }
 
 .staging .winner {
-  margin-bottom: 20px;
+  /*margin-bottom: 20px;*/
 }
 
 .staging .winner .avatar {

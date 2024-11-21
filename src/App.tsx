@@ -234,7 +234,9 @@ export default function App() {
         }
         {
           (currentRoundFinished && playerId) &&
-            <Staging playerId={playerId} startGame={() => startGame()} lastWinningResult={lastWinningResult}/>
+            <Staging playerId={playerId} startGame={() => {
+              startGame().catch(e => console.error(e));
+            }} lastWinningResult={lastWinningResult}/>
         }
       </div>
       <div className="hand-cards">
