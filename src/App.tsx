@@ -217,8 +217,8 @@ export default function App() {
                 .map((opponent) => (
                   <div key={opponent} className="opponent">
                     <PlayerAvatar playerId={opponent}/>
-                    <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>
-                    <HandCards hole={holesPerPlayer?.get(opponent)}/>
+                    {hole && board && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
+                    {hole && board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
                       actionsDone && <BetAmount playerId={opponent} actionsDone={actionsDone}/>
                     }
@@ -244,7 +244,7 @@ export default function App() {
           (playerId && actionsDone) && <BetAmount playerId={playerId} actionsDone={actionsDone}/>
         }
         {
-          (playerId && players && whoseTurnAndCallAmount?.whoseTurn === playerId) && <ActionButtons
+          (playerId && players && whoseTurnAndCallAmount?.whoseTurn === playerId && board && hole) && <ActionButtons
                 potAmount={potAmount}
                 bankroll={bankrolls.get(playerId) ?? 0}
                 fireBet={actions.fireBet}

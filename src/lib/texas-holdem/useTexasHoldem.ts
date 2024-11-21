@@ -44,19 +44,6 @@ function useGameSetup() {
     };
   }, []);
 
-  // FIXME
-  // useEffect(() => {
-  //   const winnerListener = (result: WinningResult) => {
-  //     if (currentRound === result.round) {
-  //       setPlayers(undefined);
-  //     }
-  //   };
-  //   TexasHoldem.listener.on('winner', winnerListener);
-  //   return () => {
-  //     TexasHoldem.listener.off('winner', winnerListener);
-  //   };
-  // }, [currentRound]);
-
   const smallBlind = useMemo(() => players ? players[0] : undefined, [players]);
   const bigBlind = useMemo(() => players ? players[1] : undefined, [players]);
   const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
@@ -207,12 +194,13 @@ type Action =
   | 'all-in'
   | Array<{
   bet: number,
-  uid: string, // used to de-deplicate
+  uid: string, // used to de-deduplicate
 }>
 
 function useActionsDone(round: number | undefined) {
   const [actionsPerRound, setActionsPerRound] = useState<Map<number, Map<string, Action>>>(new Map());
   const updateActionByWhom = useCallback((round: number, who: string, didWhat: number | 'fold' | 'all-in') => {
+    // this is a workaround currently to avoid duplicate invocation of the state setter in StrictMode
     const uid = uuidv4(); // TODO: generate from GameRoom
     setActionsPerRound(prev => {
       const next = new Map(prev);
@@ -233,8 +221,8 @@ function useActionsDone(round: number | undefined) {
   }, []);
 
   useEffect(() => {
-    const betListener = (round: number, amount: number, who: string) => {
-      updateActionByWhom(round, who, amount);
+    const betListener = (round: number, amount: number, who: string, allin: boolean) => {
+      updateActionByWhom(round, who, allin ? 'all-in' : amount);
     };
     TexasHoldem.listener.on('bet', betListener);
     return () => {
@@ -251,8 +239,6 @@ function useActionsDone(round: number | undefined) {
       TexasHoldem.listener.off('fold', foldListener);
     };
   }, [updateActionByWhom]);
-
-  // TODO add all-in listener
 
   useEffect(() => {
     const allSetListener = (round: number) => {

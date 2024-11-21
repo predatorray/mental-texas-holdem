@@ -40,7 +40,7 @@ export interface TexasHoldemGameRoomEvents {
   players: (round: number, players: string[]) => void;
   board: (round: number, board: Board) => void;
   hole: (round: number, whose: string, hole: Hole) => void;
-  bet: (round: number, amount: number, who: string) => void;
+  bet: (round: number, amount: number, who: string, allin: boolean) => void;
   fold: (round: number, who: string) => void;
   pot: (round: number, amount: number) => void;
 
@@ -434,7 +434,8 @@ export class TexasHoldemGameRoom {
     const currentBetAmount = pot.get(who) ?? 0;
     const leastTotalBetAmount = Array.from(pot.values()).reduce((a, b) => Math.max(a, b), 0);
     const totalBetAmount = currentBetAmount + raisedAmount;
-    if (totalBetAmount < leastTotalBetAmount && fund !== raisedAmount) { // if less but not all-in
+    const allin = fund === raisedAmount;
+    if (totalBetAmount < leastTotalBetAmount && !allin) { // if less but not all-in
       console.warn(`Cannot bet ${raisedAmount} addition to ${currentBetAmount} because the least bet amount is ${leastTotalBetAmount}.`);
       return;
     }
@@ -450,19 +451,19 @@ export class TexasHoldemGameRoom {
       }
     }
 
-    if (fund === raisedAmount) {
+    if (allin) {
       round.allInPlayers.add(who);
     }
 
     pot.set(who, totalBetAmount);
     this.updateFundOfPlayer(who, fund - raisedAmount);
 
-    this.emitter.emit('bet', roundNo, raisedAmount, who);
+    this.emitter.emit('bet', roundNo, raisedAmount, who, allin);
     const potTotalAmount = Array.from(round.pot.values()).reduce((a, b) => a + b, 0);
     this.emitter.emit('pot', roundNo, potTotalAmount);
 
     if (!isSbBbFirstBet) {
-      await this.continueUnlessAllSet(roundNo, round);
+      await this.continueUnlessAllSet(roundNo, round, who);
     }
   }
 
@@ -489,7 +490,7 @@ export class TexasHoldemGameRoom {
       const newFundOfWinner = (this.funds.get(winner) ?? 0) + totalPotAmount;
       this.updateFundOfPlayer(winner, newFundOfWinner);
     } else {
-      await this.continueUnlessAllSet(e.round, round);
+      await this.continueUnlessAllSet(e.round, round, who);
     }
   }
 
@@ -498,15 +499,18 @@ export class TexasHoldemGameRoom {
     this.emitter.emit('fund', amount, whose);
   }
 
-  private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound) {
+  private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound, whosePreviousTurn: string) {
     const players = await roundData.playersOrdered.promise;
 
-    const playersNotCalled = players.filter(player =>
-      !roundData.allInPlayers.has(player) &&
-      !roundData.calledPlayers.has(player) &&
-      !roundData.foldPlayers.has(player));
+    const prevOffset = players.findIndex(p => p === whosePreviousTurn);
+    const whoseTurnNext = [...players.slice(prevOffset + 1), ...players.slice(0, prevOffset)]
+      .find(player =>
+        !roundData.allInPlayers.has(player) &&
+        !roundData.calledPlayers.has(player) &&
+        !roundData.foldPlayers.has(player));
 
-    if (playersNotCalled.length === 0) {
+    if (!whoseTurnNext) {
+      const everyOneElseIsAllinOrFolds = roundData.calledPlayers.size <= 1;
       roundData.calledPlayers.clear();
       this.emitter.emit('allSet', round);
       this.emitter.emit('whoseTurn', round, null);
@@ -514,9 +518,9 @@ export class TexasHoldemGameRoom {
       const cardOffsetsToShow: number[] = (() => {
         switch (roundData.stage) {
           case Stage.PRE_FLOP:
-            return [0, 1, 2];
+            return everyOneElseIsAllinOrFolds ? [0, 1, 2, 3, 4] : [0, 1, 2];
           case Stage.FLOP:
-            return [3];
+            return everyOneElseIsAllinOrFolds ? [3, 4] : [3];
           case Stage.TURN:
             return [4];
           case Stage.RIVER:
@@ -531,33 +535,18 @@ export class TexasHoldemGameRoom {
       if (roundData.stage === Stage.RIVER) {
         await this.showdown(round, roundData);
       } else {
-        // FIXME: if everyone else is all-in, show all the community cards
-        this.emitter.emit('whoseTurn', round, players[0], {callAmount: 0});
+        this.emitter.emit(
+          'whoseTurn',
+          round,
+          players.find(player => !roundData.allInPlayers.has(player) && !roundData.foldPlayers.has(player)) || null,
+          {callAmount: 0});
       }
     } else {
-      const playerNextToTheLastOneWhoCalled: string = (() => {
-        // loop at most twice the array to avoid dead loop
-        let lastOneWhoCalled: string | undefined = undefined;
-        for (let i = 0; i < players.length * 2; ++i) {
-          const player = players[i % players.length];
-          if (roundData.allInPlayers.has(player) || roundData.foldPlayers.has(player)) {
-            continue; // ignore those who are all-in or folded
-          }
-
-          if (roundData.calledPlayers.has(player)) {
-            lastOneWhoCalled = player;
-          } else if (lastOneWhoCalled) {
-            return player;
-          }
-        }
-        throw new Error('unreachable'); // FIXME: if everyone else is all-in
-      })();
-
       const pot = roundData.pot;
-      const currentBetAmount = pot.get(playerNextToTheLastOneWhoCalled) ?? 0;
+      const currentBetAmount = pot.get(whoseTurnNext) ?? 0;
       const leastTotalBetAmount = Array.from(pot.values()).reduce((a, b) => Math.max(a, b), 0);
       const callAmount = leastTotalBetAmount - currentBetAmount;
-      this.emitter.emit('whoseTurn', round, playerNextToTheLastOneWhoCalled, {callAmount});
+      this.emitter.emit('whoseTurn', round, whoseTurnNext, {callAmount});
     }
   }
 
