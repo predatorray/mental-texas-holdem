@@ -418,6 +418,10 @@
   background-color:rgba(0, 0, 0, 0.5);
 }
 
+.start-button {
+  margin-top: 5px;
+}
+
 .staging {
   margin: 0;
   padding: 10px;
@@ -445,4 +449,8 @@
 .staging .winner .avatar {
   margin: 10px 40px;
   max-height: 40px;
+}
+
+.avatar.highlight {
+  box-shadow: 0 0 30px white;
 }

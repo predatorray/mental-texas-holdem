@@ -2,7 +2,9 @@ import React, {ImgHTMLAttributes} from 'react';
 
 type AvatarProperties =
   Pick<ImgHTMLAttributes<HTMLImageElement>,
-    'alt' | 'src'>;
+    'alt' | 'src' | 'className'> & {
+  highlight?: boolean;
+};
 
 export default function Avatar(props: AvatarProperties) {
   const {
@@ -10,7 +12,7 @@ export default function Avatar(props: AvatarProperties) {
     ...otherAttributes
   } = props;
   return (
-    <div className="avatar" style={{
+    <div className={props.highlight ? 'avatar highlight' : 'avatar'} style={{
       display: 'flex',
       justifyContent: 'center',
       borderTopLeftRadius: '50%',

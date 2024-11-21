@@ -33,9 +33,10 @@ function RoomLink(props: {
 
 function PlayerAvatar(props: {
   playerId: string;
+  highlight?: boolean;
 }) {
   return (
-    <Avatar src={`https://api.multiavatar.com/${props.playerId}.svg`}/>
+    <Avatar highlight={props.highlight} src={`https://api.multiavatar.com/${props.playerId}.svg`}/>
   );
 }
 
@@ -65,6 +66,7 @@ function HandCards(props: {
 }
 
 function Staging(props: {
+  round: number | undefined;
   playerId: string;
   lastWinningResult?: WinningResult;
   startGame: () => void;
@@ -76,11 +78,15 @@ function Staging(props: {
           {((lastWinningResult: WinningResult) => {
             switch (lastWinningResult.how) {
               case 'LastOneWins':
-                return <div>Winner is: <PlayerAvatar playerId={lastWinningResult.winner}/></div>
+                return <div>
+                  <PlayerAvatar playerId={lastWinningResult.winner}/>
+                  Won<br></br>
+                </div>
               case 'Showdown':
                 return (
                   <div>
                     {lastWinningResult.showdown[0].players.map(playerId => <PlayerAvatar playerId={playerId}/>)}
+                    <br></br>Won<br></br>
                     ({rankDescription[lastWinningResult.showdown[0].handValue]})
                   </div>
                 )
@@ -95,7 +101,9 @@ function Staging(props: {
           </>
         ) : (
           <>
-            <button className="action-button" onClick={() => props.startGame()}>start</button>
+            <button className="action-button start-button" onClick={() => props.startGame()}>
+              {props.round ? 'continue' : 'start'}
+            </button>
           </>
         )
       }
@@ -188,6 +196,7 @@ export default function App() {
     peerState,
     playerId,
     players,
+    round,
     currentRoundFinished,
     hole,
     holesPerPlayer,
@@ -217,7 +226,7 @@ export default function App() {
                 .filter(p => p !== playerId)
                 .map((opponent) => (
                   <div key={opponent} className="opponent">
-                    <PlayerAvatar playerId={opponent}/>
+                    <PlayerAvatar playerId={opponent} highlight={whoseTurnAndCallAmount?.whoseTurn === opponent}/>
                     {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
                     {hole && board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
@@ -235,9 +244,12 @@ export default function App() {
         }
         {
           (currentRoundFinished && playerId) &&
-            <Staging playerId={playerId} startGame={() => {
-              startGame().catch(e => console.error(e));
-            }} lastWinningResult={lastWinningResult}/>
+            <Staging
+                round={round}
+                playerId={playerId}
+                startGame={() => {startGame().catch(e => console.error(e));}}
+                lastWinningResult={lastWinningResult}
+            />
         }
       </div>
       <div className="hand-cards">
@@ -245,7 +257,7 @@ export default function App() {
           (playerId && actionsDone) && <BetAmount playerId={playerId} actionsDone={actionsDone}/>
         }
         {
-          (playerId && players && whoseTurnAndCallAmount?.whoseTurn === playerId && board && hole) && <ActionButtons
+          (playerId && players && whoseTurnAndCallAmount?.whoseTurn === playerId && board && hole && !currentRoundFinished) && <ActionButtons
                 potAmount={potAmount}
                 bankroll={bankrolls.get(playerId) ?? 0}
                 fireBet={actions.fireBet}
