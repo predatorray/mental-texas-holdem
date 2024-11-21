@@ -139,7 +139,7 @@ function ActionButtons(props: {
     fireBet(Math.ceil(potAmount / 2));
   }, [fireBet, potAmount]);
   const raiseUpToPot =  useCallback(() => {
-    fireBet(potAmount / 2);
+    fireBet(potAmount);
   }, [fireBet, potAmount]);
   const raiseUpToTwicePot =  useCallback(() => {
     fireBet(potAmount * 2);
@@ -171,12 +171,13 @@ function BetAmount(props: {
   playerId: string;
   actionsDone: Map<string, number | string>;
 }) {
-  return (props.actionsDone.get(props.playerId)) ? (
+  const actionDone = props.actionsDone.get(props.playerId);
+  return (actionDone) ? (
     <div className="bet-amount">
       {
-        (typeof props.actionsDone.get(props.playerId) !== 'string')
-          ? <><ChipImage/> ${props.actionsDone.get(props.playerId)}</>
-          : props.actionsDone.get(props.playerId)
+        (typeof actionDone !== 'string')
+          ? <><ChipImage/> ${actionDone}</>
+          : actionDone
       }
     </div>
   ) : <></>;
@@ -217,7 +218,7 @@ export default function App() {
                 .map((opponent) => (
                   <div key={opponent} className="opponent">
                     <PlayerAvatar playerId={opponent}/>
-                    {hole && board && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
+                    {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
                     {hole && board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
                       actionsDone && <BetAmount playerId={opponent} actionsDone={actionsDone}/>

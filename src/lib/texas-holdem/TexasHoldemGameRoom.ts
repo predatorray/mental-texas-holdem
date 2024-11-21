@@ -414,7 +414,7 @@ export class TexasHoldemGameRoom {
   }
 
   private async handleBet(roundNo: number, raisedAmount: number, who: string, isSbBbFirstBet?: boolean) {
-    if (raisedAmount < 0) {
+    if (raisedAmount < 0) { // FIXME must be N * BB
       console.warn(`Bet amount cannot be negative: ${raisedAmount}`);
       return;
     }
@@ -510,7 +510,7 @@ export class TexasHoldemGameRoom {
         !roundData.foldPlayers.has(player));
 
     if (!whoseTurnNext) {
-      const everyOneElseIsAllinOrFolds = roundData.calledPlayers.size <= 1;
+      const everyOneElseIsAllinOrFolds = (players.length - roundData.allInPlayers.size + roundData.foldPlayers.size) <= 1;
       roundData.calledPlayers.clear();
       this.emitter.emit('allSet', round);
       this.emitter.emit('whoseTurn', round, null);
@@ -532,7 +532,7 @@ export class TexasHoldemGameRoom {
         await this.mentalPokerGameRoom.showCard(round, cardOffset);
       }
 
-      if (roundData.stage === Stage.RIVER) {
+      if (everyOneElseIsAllinOrFolds || roundData.stage === Stage.RIVER) {
         await this.showdown(round, roundData);
       } else {
         this.emitter.emit(

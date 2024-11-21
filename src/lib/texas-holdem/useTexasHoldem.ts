@@ -282,7 +282,7 @@ function useActionsDone(round: number | undefined) {
     }
     return new Map<string, string | number>(Array.from(actions.entries()).map(([k, v]) => {
       if (typeof v === 'string') {
-        return [k ,v];
+        return [k, v];
       }
       const uidSeen = new Set<string>();
       const deduplicatedBetAmount = v.map(bet => {
