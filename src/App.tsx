@@ -4,7 +4,6 @@ import './App.css';
 
 import CardImage from "./components/CardImage";
 import ChipImage from "./components/ChipImage";
-import Avatar from "./components/Avatar";
 import ActionButton from "./components/ActionButton";
 import useTexasHoldem from "./lib/texas-holdem/useTexasHoldem";
 import useChatRoom from "./lib/useChatRoom";
@@ -12,6 +11,8 @@ import {Board, Hole} from "./lib/rules";
 import {HostId} from "./lib/setup";
 import {WinningResult} from "./lib/texas-holdem/TexasHoldemGameRoom";
 import {rankDescription} from "phe";
+import useEventLogs from "./lib/texas-holdem/useEventLogs";
+import PlayerAvatar from "./components/PlayerAvatar";
 
 function RoomLink(props: {
   playerId: string;
@@ -29,15 +30,6 @@ function RoomLink(props: {
     href={roomLink}
     target="_blank"
     rel="noreferrer">Share this Link with others.</a>;
-}
-
-function PlayerAvatar(props: {
-  playerId: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Avatar highlight={props.highlight} src={`https://api.multiavatar.com/${props.playerId}.svg`}/>
-  );
 }
 
 function CommunityCards(props: {
@@ -191,6 +183,7 @@ function BetAmount(props: {
   ) : <></>;
 }
 
+
 export default function App() {
   const {
     peerState,
@@ -213,6 +206,7 @@ export default function App() {
     actions,
   } = useTexasHoldem();
   const messages = useChatRoom();
+  const eventLogs = useEventLogs();
 
   return (
     <div className="App">

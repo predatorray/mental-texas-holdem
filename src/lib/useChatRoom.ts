@@ -2,11 +2,15 @@ import {useEffect, useState} from "react";
 import {Chat} from "./setup";
 
 export interface Message {
+  type: 'message';
   text: string;
   whose: string;
+  timestamp: number;
 }
 
-export default function useChatRoom() {
+export type Messages = Message[];
+
+export default function useChatRoom(): Messages {
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
@@ -14,8 +18,10 @@ export default function useChatRoom() {
       setMessages(prev => [
         ...prev,
         {
+          type: 'message',
           text,
           whose,
+          timestamp: Date.now(),
         },
       ]);
     };

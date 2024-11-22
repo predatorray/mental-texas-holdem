@@ -12,14 +12,7 @@ export default function Avatar(props: AvatarProperties) {
     ...otherAttributes
   } = props;
   return (
-    <div className={props.highlight ? 'avatar highlight' : 'avatar'} style={{
-      display: 'flex',
-      justifyContent: 'center',
-      borderTopLeftRadius: '50%',
-      borderTopRightRadius: '50%',
-      borderBottomLeftRadius: '50%',
-      borderBottomRightRadius: '50%',
-    }}>
+    <div className={props.highlight ? 'avatar highlight' : 'avatar'}>
       <img alt={props.alt ?? "Avatar"} {...otherAttributes}/>
     </div>
   );
