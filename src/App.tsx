@@ -6,12 +6,10 @@ import CardImage from "./components/CardImage";
 import ChipImage from "./components/ChipImage";
 import ActionButton from "./components/ActionButton";
 import useTexasHoldem from "./lib/texas-holdem/useTexasHoldem";
-import useChatRoom from "./lib/useChatRoom";
 import {Board, Hole} from "./lib/rules";
 import {HostId} from "./lib/setup";
 import {WinningResult} from "./lib/texas-holdem/TexasHoldemGameRoom";
 import {rankDescription} from "phe";
-import useEventLogs from "./lib/texas-holdem/useEventLogs";
 import PlayerAvatar from "./components/PlayerAvatar";
 
 function RoomLink(props: {
@@ -186,7 +184,6 @@ function BetAmount(props: {
 
 export default function App() {
   const {
-    peerState,
     playerId,
     players,
     round,
@@ -195,19 +192,13 @@ export default function App() {
     holesPerPlayer,
     board,
     whoseTurnAndCallAmount,
-    smallBlind,
-    bigBlind,
     startGame,
     bankrolls,
     potAmount,
-    myBetAmount,
     lastWinningResult,
     actionsDone,
     actions,
   } = useTexasHoldem();
-  const messages = useChatRoom();
-  const eventLogs = useEventLogs();
-
   return (
     <div className="App">
       { playerId && <RoomLink playerId={playerId}/> }
