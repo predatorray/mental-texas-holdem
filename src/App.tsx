@@ -151,11 +151,19 @@ function ActionButtons(props: {
           callAmount === 0 ? 'CHECK' : <>CALL<br/>${callAmount}</>
         }
       </ActionButton>
-      <ActionButton className="action-raise" onClick={raiseUpToHalfPot}>RAISE<br/>1/2 pot</ActionButton>
-      <ActionButton className="action-raise" onClick={raiseUpToPot}>RAISE<br/>1 pot</ActionButton>
-      <ActionButton className="action-raise" onClick={raiseUpToTwicePot}>RAISE<br/>2 pot</ActionButton>
+      {
+        callAmount <= Math.ceil(potAmount / 2) && <ActionButton className="action-raise" onClick={raiseUpToHalfPot}>RAISE<br/>1/2 pot</ActionButton>
+      }
+      {
+        callAmount <= potAmount && <ActionButton className="action-raise" onClick={raiseUpToPot}>RAISE<br/>1 pot</ActionButton>
+      }
+      {
+        callAmount <= (potAmount * 2) &&  <ActionButton className="action-raise" onClick={raiseUpToTwicePot}>RAISE<br/>2 pot</ActionButton>
+      }
       <ActionButton className="action-all-in" onClick={allIn}>ALL-IN</ActionButton>
-      <ActionButton className="action-fold" onClick={fold}>FOLD</ActionButton>
+      {
+        callAmount > 0 && <ActionButton className="action-fold" onClick={fold}>FOLD</ActionButton>
+      }
     </div>
   );
 }
