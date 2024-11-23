@@ -120,6 +120,13 @@
   min-width: 128px;
 }
 
+.opponents .opponent.winner {
+  border: 1px #fff solid;
+  border-radius: 10px;
+  padding: 5px;
+  background-color:rgba(0, 0, 0, 0.5);
+}
+
 .opponents .opponent:first-child:not(:last-child) {
   margin-top: 30px;
 }
@@ -171,7 +178,7 @@
 .table {
   position: absolute;
   left: 50%;
-  top: 40%;
+  top: 45%;
 
   transform: translate(-50%, -50%);
   text-align: center;
@@ -270,6 +277,13 @@
   left: 50%;
   transform: translate(-50%, 0);
   perspective: 220px;
+}
+
+.hand-cards.winner {
+  border: 1px #fff solid;
+  border-radius: 10px;
+  padding: 8px;
+  background-color:rgba(0, 0, 0, 0.5);
 }
 
 .hand-cards .avatar {
@@ -376,13 +390,9 @@
   }
 }
 
-.staging .winner {
-  /*margin-bottom: 20px;*/
-}
-
-.staging .winner .avatar {
-  margin: 10px 40px;
-  max-height: 40px;
+.staging .action-button {
+  font-size: 24px;
+  padding: 10px;
 }
 
 .events-and-messages {

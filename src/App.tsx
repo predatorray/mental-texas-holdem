@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useMemo} from 'react';
 
 import './App.css';
 
@@ -58,32 +58,10 @@ function HandCards(props: {
 function Staging(props: {
   round: number | undefined;
   playerId: string;
-  lastWinningResult?: WinningResult;
   startGame: () => void;
 }) {
   return (
     <div className="staging">
-      {
-        props.lastWinningResult && <div className="winner">
-          {((lastWinningResult: WinningResult) => {
-            switch (lastWinningResult.how) {
-              case 'LastOneWins':
-                return <div>
-                  <PlayerAvatar playerId={lastWinningResult.winner}/>
-                  Won<br></br>
-                </div>
-              case 'Showdown':
-                return (
-                  <div>
-                    {lastWinningResult.showdown[0].players.map(playerId => <PlayerAvatar playerId={playerId}/>)}
-                    <br></br>Won<br></br>
-                    ({rankDescription[lastWinningResult.showdown[0].handValue]})
-                  </div>
-                )
-            }
-          })(props.lastWinningResult)}
-        </div>
-      }
       {
         HostId ? (
           <>
@@ -103,14 +81,31 @@ function Staging(props: {
 
 function CommunityCardsOnTable(props: {
   potAmount: number;
+  currentRoundFinished: boolean;
+  lastWinningResult?: WinningResult;
   board: Board;
 }) {
+  const {
+    potAmount,
+    currentRoundFinished,
+    lastWinningResult: winningResult,
+    board,
+  } = props;
+  const winningResultDescription = (currentRoundFinished && winningResult) && (winningResult?.how === 'Showdown'
+    ? rankDescription[winningResult.showdown[0].handValue]
+    : 'One Player Remaining');
   return (
     <>
       <div className="pot">
-        <ChipImage/> ${props.potAmount}
+        {
+          winningResultDescription ? (
+            winningResultDescription
+          ) : (
+            <><ChipImage/> ${potAmount}</>
+          )
+        }
       </div>
-      <CommunityCards board={props.board}/>
+      <CommunityCards board={board}/>
     </>
   );
 }
@@ -199,18 +194,42 @@ export default function App() {
     actionsDone,
     actions,
   } = useTexasHoldem();
+
+  const mainPotWinners = useMemo(() => {
+    if (!currentRoundFinished || !lastWinningResult) {
+      return null;
+    }
+    const winners: string[] = [];
+    switch (lastWinningResult.how) {
+      case 'LastOneWins':
+        winners.push(lastWinningResult.winner);
+        break
+      case 'Showdown':
+        winners.push(...lastWinningResult.showdown[0].players);
+        break;
+    }
+    return new Set(winners);
+  }, [currentRoundFinished, lastWinningResult]);
+
+  const iAmWinner = useMemo(() => {
+    if (!mainPotWinners || !playerId) {
+      return false;
+    }
+    return mainPotWinners.has(playerId);
+  }, [mainPotWinners, playerId]);
+
   return (
     <div className="App">
       { playerId && <RoomLink playerId={playerId}/> }
       {
         players && (
           <div className="opponents">
-            {(() => {
+            {((): React.ReactElement[] => {
               const myOffset = players.findIndex(p => p === playerId);
               return [...players.slice(myOffset + 1), ...players.slice(0, myOffset)]
                 .filter(p => p !== playerId)
                 .map((opponent) => (
-                  <div key={opponent} className="opponent">
+                  <div key={opponent} className={mainPotWinners && mainPotWinners.has(opponent) ? 'opponent winner' : 'opponent'}>
                     <PlayerAvatar playerId={opponent} highlight={whoseTurnAndCallAmount?.whoseTurn === opponent}/>
                     {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
                     {hole && board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
@@ -225,7 +244,7 @@ export default function App() {
       }
       <div className="table">
         {
-          (players && hole && board) && <CommunityCardsOnTable board={board} potAmount={potAmount}/>
+          (players && hole && board) && <CommunityCardsOnTable board={board} potAmount={potAmount} currentRoundFinished={currentRoundFinished} lastWinningResult={lastWinningResult}/>
         }
         {
           (currentRoundFinished && playerId) &&
@@ -233,11 +252,10 @@ export default function App() {
                 round={round}
                 playerId={playerId}
                 startGame={() => {startGame().catch(e => console.error(e));}}
-                lastWinningResult={lastWinningResult}
             />
         }
       </div>
-      <div className="hand-cards">
+      <div className={iAmWinner ? 'hand-cards winner' : 'hand-cards'}>
         {
           (playerId && actionsDone) && <BetAmount playerId={playerId} actionsDone={actionsDone}/>
         }
