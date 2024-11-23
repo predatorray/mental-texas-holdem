@@ -30,6 +30,18 @@ function useStatus() {
 }
 
 function useGameSetup() {
+  const [members, setMembers] = useState<string[]>([]);
+
+  useEffect(() => {
+    const membersListener = (membersUpdated: string[]) => {
+      setMembers([...membersUpdated]);
+    };
+    TexasHoldem.listener.on('members', membersListener);
+    return () => {
+      TexasHoldem.listener.off('members', membersListener);
+    };
+  }, []);
+
   const [currentRound, setCurrentRound] = useState<number>();
   const [players, setPlayers] = useState<string[]>();
 
@@ -49,6 +61,7 @@ function useGameSetup() {
   const button = useMemo(() => players ? players[players.length - 1] : undefined, [players]);
 
   return {
+    members,
     players,
     smallBlind,
     bigBlind,
@@ -348,6 +361,7 @@ export default function useTexasHoldem() {
   const myPlayerId = useMyPlayerId();
   const status = useStatus();
   const {
+    members,
     players,
     smallBlind,
     bigBlind,
@@ -401,6 +415,7 @@ export default function useTexasHoldem() {
   return {
     peerState: status,
     playerId: myPlayerId,
+    members,
     round: currentRound,
     currentRoundFinished,
     players,

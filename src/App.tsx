@@ -188,6 +188,7 @@ function BetAmount(props: {
 export default function App() {
   const {
     playerId,
+    members,
     players,
     round,
     currentRoundFinished,
@@ -229,6 +230,19 @@ export default function App() {
   return (
     <div className="App">
       { playerId && <RoomLink playerId={playerId}/> }
+      {
+        (!players && playerId) && (
+          <div className="opponents">
+            {
+              members.filter(member => member !== playerId).map((member) => (
+                <div key={member} className="opponent">
+                  <PlayerAvatar playerId={member}/>
+                </div>
+              ))
+            }
+          </div>
+        )
+      }
       {
         players && (
           <div className="opponents">
