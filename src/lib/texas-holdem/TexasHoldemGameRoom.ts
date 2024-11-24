@@ -219,6 +219,10 @@ export class TexasHoldemGameRoom {
     return this.emitter;
   }
 
+  close() {
+    this.lcm.close();
+  }
+
   private propagate(eventName: (keyof (MentalPokerGameRoomEvents | TexasHoldemGameRoomEvents))) {
     this.mentalPokerGameRoom.listener.on(eventName, this.lcm.register((...args) => {
       this.emitter.emit(eventName, ...args);

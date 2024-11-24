@@ -130,7 +130,7 @@ export default class GameRoom<T> {
   public peerId?: string;
   private peerIdDeferred = new Deferred<string>();
 
-  public hostId?: string;
+  public readonly hostId?: string;
 
   private readonly lcm = new LifecycleManager();
 
@@ -213,6 +213,13 @@ export default class GameRoom<T> {
         conn.on('close', () => {
           console.info(`The client connection is closed. (peerId = ${conn.peer}).`);
           this.guestConnectionPromises.delete(conn.peer);
+
+          const membersChangedEvent: MembersChangedEvent = {
+            type: '_members',
+            data: this.members,
+          };
+          this.sendMessageToAllGuests(membersChangedEvent);
+          this.emitter.emit('members', this.members);
         });
         const membersChangedEvent: MembersChangedEvent = {
           type: '_members',
@@ -231,6 +238,12 @@ export default class GameRoom<T> {
   }
 
   close() {
+    this.hostConnectionPromise.then(hostConn => hostConn?.close());
+    for (let connPromise of Array.from(this.guestConnectionPromises.values())) {
+      connPromise.then((conn) => {
+        conn.close();
+      });
+    }
     this.lcm.close();
   }
 
