@@ -11,6 +11,9 @@ import {HostId} from "../lib/setup";
 import {WinningResult} from "../lib/texas-holdem/TexasHoldemGameRoom";
 import {rankDescription} from "phe";
 import PlayerAvatar from "./PlayerAvatar";
+import MessageBar from "./MessageBar";
+import useChatRoom from "../lib/useChatRoom";
+import useEventLogs from "../lib/texas-holdem/useEventLogs";
 
 function RoomLink(props: {
   playerId: string;
@@ -228,6 +231,13 @@ export default function TexasHoldemGameTable() {
     return mainPotWinners.has(playerId);
   }, [mainPotWinners, playerId]);
 
+  const {
+    messages,
+    sendMessage,
+  } = useChatRoom();
+
+  const eventLogs = useEventLogs();
+
   return (
     <div className="App">
       {
@@ -296,6 +306,7 @@ export default function TexasHoldemGameTable() {
 
         {hole && <HandCards hole={hole}/>}
       </div>
+      { playerId && <MessageBar playerId={playerId} eventLogs={eventLogs} messages={messages} onMessage={sendMessage} /> }
     </div>
   );
 }

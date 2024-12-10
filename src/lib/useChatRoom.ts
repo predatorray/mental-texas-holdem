@@ -10,8 +10,8 @@ export interface Message {
 
 export type Messages = Message[];
 
-export default function useChatRoom(): Messages {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function useChatRoom() {
+  const [messages, setMessages] = useState<Messages>([]);
 
   useEffect(() => {
     const textListener = (text: string, whose: string) => {
@@ -31,5 +31,12 @@ export default function useChatRoom(): Messages {
     }
   }, []);
 
-  return messages;
+  const sendMessage = (text: string) => {
+    Chat.sendTextMessage(text);
+  };
+
+  return {
+    messages,
+    sendMessage,
+  };
 }

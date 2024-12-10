@@ -16,7 +16,7 @@ export interface ChatRoomEvents {
 }
 
 export interface GameRoomLike<T> {
-  listener: EventListener<GameRoomEvents<T>>;
+  listener: EventListener<GameRoomEvents<GameEvent<T>>>;
   peerIdAsync: Promise<string>;
   emitEvent: (e: GameEvent<T>) => Promise<void>;
   close: () => void;
@@ -30,9 +30,11 @@ export default class ChatRoom {
   constructor(gameRoom: GameRoomLike<ChatRoomEvent | any>) {
     this.gameRoom = gameRoom;
 
-    this.gameRoom.listener.on('event', this.lcm.register(e => {
-      switch (e.type) {
-
+    this.gameRoom.listener.on('event', this.lcm.register(({data}, whom) => {
+      switch (data.type) {
+        case 'text':
+          this.emitter.emit('text', data.text, whom);
+          break;
       }
     }, listener => this.gameRoom.listener.off('event', listener)));
   }

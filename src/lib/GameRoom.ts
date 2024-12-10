@@ -51,17 +51,23 @@ export interface EncryptedPrivateGameEvent {
   cipherHex: string;
 }
 
-export type InternalEvent =
+export interface ReplayEvent<T> {
+  type: '_replay';
+  events: Array<[PublicGameEvent<T>, string]>;
+}
+
+export type InternalEvent<T> =
   | MembersChangedEvent
   | PublicKeyEvent
   | EncryptedPrivateGameEvent
+  | ReplayEvent<T>
 ;
 
 export interface GameRoomEvents<T> {
   status: (status: GameRoomStatus) => void;
   connected: (peerId: string) => void;
   members: (members: string[]) => void;
-  event: (e: T, fromWhom: string) => void;
+  event: (e: T, fromWhom: string, replay?: boolean) => void;
 }
 
 export type GameRoomOptions = {
@@ -131,6 +137,8 @@ export default class GameRoom<T> {
   private peerIdDeferred = new Deferred<string>();
 
   public readonly hostId?: string;
+
+  private publicEvents: Array<[PublicGameEvent<T>, string]> = [];
 
   private readonly lcm = new LifecycleManager();
 
@@ -226,9 +234,25 @@ export default class GameRoom<T> {
           data: this.members,
         };
         this.sendMessageToAllGuests(membersChangedEvent);
-        this.publishPublicKeyToSingleGuest(conn.peer); // publish the host's public key again when there is a new guest
+
+        // publish the host's public key again when there is a new guest
+        this.publishPublicKeyToSingleGuest(conn.peer);
+
+        const replayEvent: ReplayEvent<T> = {
+          type: '_replay',
+          events: [...this.publicEvents],
+        };
+        this.sendMessageToSingleGuest(conn.peer, replayEvent);
+
         this.emitter.emit('members', this.members);
       }, listener => peer.off('connection', listener)));
+
+      this.emitter.on('event', this.lcm.register((e: GameEvent<T>, whom: string) => {
+        if (e.type === 'public') {
+          this.publicEvents.push([e, whom]);
+        }
+      }, listener => this.emitter.off('event', listener)));
+
     }
 
     peer.on('close', () => {
@@ -327,7 +351,7 @@ export default class GameRoom<T> {
   }
 
   private handleData(data: unknown, whom: string) {
-    const e = data as (GameEvent<T> | InternalEvent);
+    const e = data as (GameEvent<T> | InternalEvent<T>);
     if (!e || !e.type) {
       console.error('missing event or type');
       return;
@@ -351,7 +375,7 @@ export default class GameRoom<T> {
           this.publishPublicKey();
           break;
         case '_publicKey':
-          const rsaPulbicKeyPromise = window.crypto.subtle.importKey(
+          const rsaPublicKeyPromise = window.crypto.subtle.importKey(
             'jwk',
             e.jwk,
             {
@@ -363,12 +387,12 @@ export default class GameRoom<T> {
           );
           const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
           if (rsaPublicKeyDeferred) {
-            rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
+            rsaPublicKeyDeferred.resolve(rsaPublicKeyPromise);
           } else {
             // in case _publicKey event arrives before _members
             const deferred = new Deferred<CryptoKey>();
             this.rsaPublicKeysOfOthers.set(e.sender, deferred);
-            deferred.resolve(rsaPulbicKeyPromise);
+            deferred.resolve(rsaPublicKeyPromise);
           }
           break;
         case '_encrypted':
@@ -382,6 +406,11 @@ export default class GameRoom<T> {
               this.emitter.emit('event', data, whom);
             });
           });
+          break;
+        case '_replay':
+          for (let [data, whom] of e.events) {
+            this.emitter.emit('event', data, whom, true);
+          }
           break;
       }
     } else {
@@ -401,7 +430,7 @@ export default class GameRoom<T> {
           break;
         case '_publicKey':
           this.sendMessageToAllGuests!(e, whom);
-          const rsaPulbicKeyPromise = window.crypto.subtle.importKey(
+          const rsaPublicKeyPromise = window.crypto.subtle.importKey(
             'jwk',
             e.jwk,
             {
@@ -413,13 +442,13 @@ export default class GameRoom<T> {
           );
           const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
           if (rsaPublicKeyDeferred) {
-            rsaPublicKeyDeferred.resolve(rsaPulbicKeyPromise);
+            rsaPublicKeyDeferred.resolve(rsaPublicKeyPromise);
           } else {
             // in case _publicKey event arrives before _members
             if (!this.rsaPublicKeysOfOthers.has(e.sender)) {
               const deferred = new Deferred<CryptoKey>();
               this.rsaPublicKeysOfOthers.set(e.sender, deferred);
-              deferred.resolve(rsaPulbicKeyPromise);
+              deferred.resolve(rsaPublicKeyPromise);
             }
           }
           break;
@@ -436,7 +465,7 @@ export default class GameRoom<T> {
               });
             });
           } else {
-            this.sendMessageToSingleGuest!(e.recipient, e);
+            this.sendMessageToSingleGuest(e.recipient, e);
           }
           break;
       }
