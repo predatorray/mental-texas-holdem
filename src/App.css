@@ -504,6 +504,11 @@
   justify-content: flex-end;
 }
 
+.message-bar .message .private-message {
+  margin-left: 2px;
+  color: #666;
+}
+
 .message-bar .message .card-char {
   font-size: 30px;
   color: black;
@@ -524,8 +529,20 @@
   margin-bottom: 5px;
 }
 
-.message-bar .message .message-text {
-  margin-left: 4px;
+.message-bar .message.system-notification {
+  justify-content: center;
+  font-size: 10px;
+  color: #666;
+}
+
+.message-bar .message.system-notification::before {
+  content: '(';
+  margin-right: auto;
+}
+
+.message-bar .message.system-notification::after {
+  content: ')';
+  margin-left: auto;
 }
 
 .message-bar .message-input {

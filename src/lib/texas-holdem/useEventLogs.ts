@@ -23,10 +23,34 @@ export interface BoardEventLog {
   timestamp: number;
 }
 
+export interface CheckEventLog {
+  type: 'check';
+  playerId: string;
+  timestamp: number;
+}
+
+export interface RaiseEventLog {
+  type: 'raise';
+  playerId: string;
+  raisedAmount: number;
+  allin: boolean;
+  timestamp: number;
+}
+
+export interface FoldEventLog {
+  type: 'fold';
+  playerId: string;
+  timestamp: number;
+}
+
 export type EventLog =
   | NewRoundEventLog
   | HoleEventLog
-  | BoardEventLog;
+  | BoardEventLog
+  | CheckEventLog
+  | RaiseEventLog
+  | FoldEventLog
+;
 
 export type EventLogs = EventLog[];
 
@@ -77,6 +101,44 @@ export default function useEventLogs(): EventLogs {
     TexasHoldem.listener.on('board', boardListener);
     return () => {
       TexasHoldem.listener.off('board', boardListener);
+    };
+  }, [appendLog]);
+
+  useEffect(() => {
+    const betListener: TexasHoldemGameRoomEvents['bet'] = (round, amount, who, allin) => {
+      if (amount === 0) {
+        appendLog({
+          type: 'check',
+          playerId: who,
+          timestamp: Date.now(),
+        });
+      } else {
+        appendLog({
+          type: 'raise',
+          raisedAmount: amount,
+          playerId: who,
+          allin,
+          timestamp: Date.now(),
+        });
+      }
+    };
+    TexasHoldem.listener.on('bet', betListener);
+    return () => {
+      TexasHoldem.listener.off('bet', betListener);
+    };
+  }, [appendLog]);
+
+  useEffect(() => {
+    const foldListener: TexasHoldemGameRoomEvents['fold'] = (round, who) => {
+      appendLog({
+        type: 'fold',
+        playerId: who,
+        timestamp: Date.now(),
+      });
+    };
+    TexasHoldem.listener.on('fold', foldListener);
+    return () => {
+      TexasHoldem.listener.off('fold', foldListener);
     };
   }, [appendLog]);
 

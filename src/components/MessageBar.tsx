@@ -9,21 +9,24 @@ function EventOrMessage(props: {
   eventOrMessage: EventLog | Message;
 }) {
   const em = props.eventOrMessage;
+
+  const AvatarOrMe = (subProps: { whose: string }) => {
+    return subProps.whose === props.myPlayerId
+        ? <b>Me:&nbsp;</b>
+        : <><PlayerAvatar playerId={subProps.whose}/>:&nbsp;</>
+  }
+
   switch (em.type) {
     case 'message':
       return (
         <div className={em.whose === props.myPlayerId ? "message mime" : "message"}>
-          {
-            em.whose === props.myPlayerId
-              ? <b>Me:</b>
-              : <><PlayerAvatar playerId={em.whose}/>:</>
-          }
+          <AvatarOrMe whose={em.whose}/>
           <div className="message-text">{em.text}</div>
         </div>
       );
     case 'board':
       return (
-        <div className="message">
+        <div className="message system-notification">
           <b>Board:</b> {
             em.board
               .map(card => {
@@ -35,18 +38,44 @@ function EventOrMessage(props: {
       );
     case 'hole':
       return (
-        <div className="message">
-          <PlayerAvatar playerId={em.playerId} />: {
-          em.hole
-            .map(card => {
-              const cardUnicode = convertToUnicode(card);
-              return <span className={`card-char ${card.suit.toLowerCase()}`}>{cardUnicode}</span>
-            })
-        }
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+          <AvatarOrMe whose={em.playerId}/> {
+            em.hole
+              .map(card => {
+                const cardUnicode = convertToUnicode(card);
+                return <span className={`card-char ${card.suit.toLowerCase()}`}>{cardUnicode}</span>
+              })
+          }
+          {
+            props.myPlayerId === em.playerId && <i className="private-message">(private)</i>
+          }
         </div>
       );
-    case "newRound":
-      return <></>; // TODO
+    case 'newRound':
+      return (
+        <div className="message system-notification">Round {em.round} started</div>
+      );
+    case 'raise':
+      return (
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+          <AvatarOrMe whose={em.playerId}/>raised / called ${em.raisedAmount}
+          {
+            em.allin && <b>&nbsp;ALL-IN</b>
+          }
+        </div>
+      );
+    case 'fold':
+      return (
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+          <AvatarOrMe whose={em.playerId}/>fold
+        </div>
+      );
+    case 'check':
+      return (
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+          <AvatarOrMe whose={em.playerId}/>checked
+        </div>
+      );
   }
 }
 
@@ -99,7 +128,7 @@ export default function MessageBar(props: {
       return;
     }
     messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
-  }, [messages]);
+  }, [messages, eventLogs]);
 
   return (
     <div className={collapsed ? "message-bar collapsed" :  "message-bar"}>
