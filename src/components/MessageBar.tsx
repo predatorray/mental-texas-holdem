@@ -146,7 +146,7 @@ export default function MessageBar(props: {
       <div className="title-bar" onClick={flipCollapsed}>
         <div className="profile">
           <PlayerAvatar playerId={playerId}/>
-          <a>Messages</a>
+          <h4>Messages</h4>
           {
             (collapsed && unreadMessageCount > 0) && <span className="badge">{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>
           }
