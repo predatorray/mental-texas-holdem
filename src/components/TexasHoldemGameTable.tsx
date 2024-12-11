@@ -14,6 +14,7 @@ import PlayerAvatar from "./PlayerAvatar";
 import MessageBar from "./MessageBar";
 import useChatRoom from "../lib/useChatRoom";
 import useEventLogs from "../lib/texas-holdem/useEventLogs";
+import GithubProjectLink from "./GithubProjectLink";
 
 function RoomLink(props: {
   playerId: string;
@@ -240,6 +241,7 @@ export default function TexasHoldemGameTable() {
 
   return (
     <div className="App">
+      <GithubProjectLink/>
       {
         (!players && playerId) && (
           <div className="opponents">

@@ -37,6 +37,25 @@
   }
 }
 
+.github-project-link {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+
+  margin-left: 16px;
+  margin-bottom: 10px;
+}
+
+.github-project-link > img {
+  height: 20px;
+  width: 20px;
+  opacity: 0.5;
+}
+
+.github-project-link:hover > img {
+  opacity: 1;
+}
+
 .room-link {
   margin-top: 5px;
   color: #fff;
