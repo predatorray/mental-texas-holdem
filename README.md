@@ -1,46 +1,72 @@
-# Getting Started with Create React App
+# Mental Texas Hold'em
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![License](https://img.shields.io/github/license/predatorray/mental-texas-holdem)
+![Build Status](https://img.shields.io/github/actions/workflow/status/predatorray/mental-texas-holdem/ci.yml?branch=master)
 
-## Available Scripts
+![screenshot](https://github.com/predatorray/mental-texas-holdem/blob/assets/screenshot.png?raw=true)
 
-In the project directory, you can run:
+A **Peer-to-Peer**, **serverless** Texas Hold'em game that runs purely on browsers using WebRTC.
 
-### `npm start`
+A live demo is available [here](https://www.predatorray.me/mental-texas-holdem/).
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Highlights
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+### Serverless
 
-### `npm test`
+The game leverages the WebRTC framework called [PeerJS](https://peerjs.com), 
+where no peer-to-peer data goes through the server once connections are established.
+Literally speaking, there is no "Game Server" running in the background,
+but instead, every player is engaged in "server"ing the game,
+even including shuffling the deck and dealing cards.
+The host, who creates the game, merely acts as a hub that proxies the data sent by those
+who join the game later.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Fairness
 
-### `npm run build`
+So, you may ask, *is it still a fair game*? Well, here is the most interesting part of this project.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Fairness is guaranteed by using an algorithm that solves a cryptographic problem called **Mental Poker**,
+where a fair poker game can still be played without a trusted third party.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Though, a more detailed explanation of the algorithm can be found on
+[its Wikipedia page](https://en.wikipedia.org/wiki/Mental_poker),
+here is a brief summary:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+1. There are two players Alice and Bob.
+2. Alice and Bob shuffle and encrypt the deck one after another using commutative encryption algorithm.
+3. And then, they decrypt the deck using their private key and encrypt again each card individually using different keys.
+4. Finally, the deck is shuffled and double-encrypted by Alice and Bob.
+   Unless both Alice and bob agree to share their own private keys of a card, no one knows, even Alice or Bob.
 
-### `npm run eject`
+An implementation of the algorithm can be found in this separate project:
+[predatorray/mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
+and it is also available on [NPM](https://www.npmjs.com/package/mental-poker-toolkit).
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Limitations
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Fault Tolerance
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+If a peer disconnects or leaves the game, the game won't be able to continue.
+There is no persistence or recovery mechanism implemented yet.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+### Performance
 
-## Learn More
+SRA, a RSA variant, is used as the commutative encryption algorithm described above.
+Its encryption and decryption consume a lot of CPU resource,
+especially when a large key length (e.g. > 128 bits) is used.
+Running such computation on a browser using Javascript is relatively slow comparing to
+other native applications.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Besides that, since the deck is double-encrypted using SRA,
+the size of ciphertext could grow exponentially with the key length.
+Thus, network could be a bottleneck if key length is too large, which finally causes
+huge latency when shuffling the deck.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Support & Bug Report
+
+Please feel free to [open an issue](https://github.com/predatorray/mental-texas-holdem/issues/new)
+if you find any bug or have any suggestion.
+
+## License
+
+[MIT License](LICENSE)
