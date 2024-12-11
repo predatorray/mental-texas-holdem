@@ -86,8 +86,10 @@ export default function MessageBar(props: {
   onMessage?: (message: string) => void;
 }) {
   const {
+    playerId,
     eventLogs,
     messages,
+    onMessage,
   } = props;
   const eventsAndMessage: Array<EventLog | Message> = useMemo(() => {
     const merged = [];
@@ -116,10 +118,10 @@ export default function MessageBar(props: {
 
   const handleInputKeyUp: React.KeyboardEventHandler<HTMLInputElement>  = useCallback(e => {
     if (e.key === 'Enter' && inputValue) {
-      props.onMessage?.(inputValue);
+      onMessage?.(inputValue);
       setInputValue('');
     }
-  }, [inputValue]);
+  }, [inputValue, onMessage]);
 
   const messagesDivRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -134,7 +136,7 @@ export default function MessageBar(props: {
     <div className={collapsed ? "message-bar collapsed" :  "message-bar"}>
       <div className="title-bar" onClick={flipCollapsed}>
         <div className="profile">
-          <PlayerAvatar playerId={props.playerId}/>
+          <PlayerAvatar playerId={playerId}/>
           <a>Messages</a>
         </div>
         <div className="icon">
@@ -147,7 +149,7 @@ export default function MessageBar(props: {
           : (
             <div ref={messagesDivRef} className="messages">
               {
-                eventsAndMessage.map((em, i) => <EventOrMessage key={i} myPlayerId={props.playerId} eventOrMessage={em}/>)
+                eventsAndMessage.map((em, i) => <EventOrMessage key={i} myPlayerId={playerId} eventOrMessage={em}/>)
               }
             </div>
           )
