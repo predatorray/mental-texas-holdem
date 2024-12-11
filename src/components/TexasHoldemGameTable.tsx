@@ -75,7 +75,7 @@ function Staging(props: {
             <button className="action-button start-button" onClick={() => props.startGame()}>
               {props.round ? 'continue' : 'start'}
             </button>
-            <RoomLink playerId={props.playerId} />
+            {props.round === undefined && <RoomLink playerId={props.playerId}/>}
           </>
         )
       }
