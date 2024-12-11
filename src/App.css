@@ -440,11 +440,10 @@
   display: flex;
   justify-content: space-between;
   padding: 0 5px;
-  box-shadow: 0 0 10px 0 #3333;
+  border-bottom: 1px solid #f1f1f1;
 }
 
 .message-bar .title-bar:hover {
-  background: #f6f6f6;
   cursor: pointer;
 }
 
@@ -472,6 +471,12 @@
   transition-property: background;
   transition-duration: 0.3s;
   transform: rotate(-90deg);
+}
+
+.message-bar .title-bar .badge {
+  margin-left: 7px;
+  background: #ffeb90;
+  color: #111;
 }
 
 .message-bar .no-messages {
@@ -552,6 +557,17 @@
   background-repeat: no-repeat;
   border-radius: 4px;
   height: 25px;
+  min-height: 25px;
   margin: 10px auto;
   border: 2px solid transparent;
+}
+
+.badge {
+  background-color: #999;
+  display: inline-block;
+  padding: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  border-radius: 5px;
 }

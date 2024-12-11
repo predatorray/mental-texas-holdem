@@ -111,6 +111,14 @@ export default function MessageBar(props: {
   const [collapsed, setCollapsed] = useState(false);
   const flipCollapsed = useCallback(() => setCollapsed(collapsed => !collapsed), []);
 
+  const [readMessageCount, setReadMessageCount] = useState<number>(0);
+  useEffect(() => {
+    if (!collapsed) {
+      setReadMessageCount(messages.length);
+    }
+  }, [messages, collapsed]);
+  const unreadMessageCount = useMemo(() => messages.length - readMessageCount, [messages, readMessageCount]);
+
   const [inputValue, setInputValue] = useState('');
 
   const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = useCallback(e => {
@@ -139,6 +147,9 @@ export default function MessageBar(props: {
         <div className="profile">
           <PlayerAvatar playerId={playerId}/>
           <a>Messages</a>
+          {
+            (collapsed && unreadMessageCount > 0) && <span className="badge">{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>
+          }
         </div>
         <div className="icon">
           <p style={{transform: collapsed ? 'rotate(-90deg)' : 'rotate(90deg)'}}>❮</p>
