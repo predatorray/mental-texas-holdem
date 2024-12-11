@@ -1,8 +1,8 @@
 import {EventLog, EventLogs} from "../lib/texas-holdem/useEventLogs";
 import {Message, Messages} from "../lib/useChatRoom";
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {convertToUnicode} from "../lib/rules";
 import PlayerAvatar from "./PlayerAvatar";
+import {rankDescription} from "phe";
 
 function EventOrMessage(props: {
   myPlayerId: string;
@@ -22,33 +22,6 @@ function EventOrMessage(props: {
         <div className={em.whose === props.myPlayerId ? "message mime" : "message"}>
           <AvatarOrMe whose={em.whose}/>
           <div className="message-text">{em.text}</div>
-        </div>
-      );
-    case 'board':
-      return (
-        <div className="message system-notification">
-          <b>Board:</b> {
-            em.board
-              .map(card => {
-                const cardUnicode = convertToUnicode(card);
-                return <span className={`card-char ${card.suit.toLowerCase()}`}>{cardUnicode}</span>
-              })
-          }
-        </div>
-      );
-    case 'hole':
-      return (
-        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
-          <AvatarOrMe whose={em.playerId}/> {
-            em.hole
-              .map(card => {
-                const cardUnicode = convertToUnicode(card);
-                return <span className={`card-char ${card.suit.toLowerCase()}`}>{cardUnicode}</span>
-              })
-          }
-          {
-            props.myPlayerId === em.playerId && <i className="private-message">(private)</i>
-          }
         </div>
       );
     case 'newRound':
@@ -74,6 +47,34 @@ function EventOrMessage(props: {
       return (
         <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
           <AvatarOrMe whose={em.playerId}/>checked
+        </div>
+      );
+    case 'winner':
+      return (
+        <div className="message system-notification">
+          {
+            em.result.how === 'LastOneWins' ? (
+              <>
+                <PlayerAvatar playerId={em.result.winner}/>:&nbsp;won.
+              </>
+            ) : (
+              <>
+                {
+                  em.result.showdown[0].players.map(p => <PlayerAvatar playerId={p}/>)
+                }
+                :&nbsp;won ({rankDescription[em.result.showdown[0].handValue]}).
+              </>
+            )
+          }
+        </div>
+      );
+    case 'fund':
+      return (
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+          <PlayerAvatar playerId={em.playerId}/>'s fund updated: ${em.currentAmount}&nbsp;
+          {em.previousAmount && <>
+            ({(em.currentAmount - em.previousAmount >= 0) ? '+' : '-'}${Math.abs(em.currentAmount - em.previousAmount)})
+          </>}
         </div>
       );
   }

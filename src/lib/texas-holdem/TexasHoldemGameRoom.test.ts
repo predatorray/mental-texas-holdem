@@ -88,14 +88,14 @@ describe('TexasHoldemGameRoom', () => {
       });
     });
     const fundOfAPromise = new Promise<number>(resolve => {
-      texasHoldemGameRoom.listener.on('fund', (fund, whose) => {
+      texasHoldemGameRoom.listener.on('fund', (fund, previousFund, whose) => {
         if (whose === 'A') {
           resolve(fund);
         }
       });
     });
     const fundOfBPromise = new Promise<number>(resolve => {
-      texasHoldemGameRoom.listener.on('fund', (fund, whose) => {
+      texasHoldemGameRoom.listener.on('fund', (fund, previousFund, whose) => {
         if (whose === 'B') {
           resolve(fund);
         }

@@ -1,25 +1,11 @@
-import {Board, Hole} from "../rules";
 import {useCallback, useEffect, useState} from "react";
 import {TexasHoldem} from "../setup";
-import {TexasHoldemGameRoomEvents} from "./TexasHoldemGameRoom";
+import {TexasHoldemGameRoomEvents, WinningResult} from "./TexasHoldemGameRoom";
 
 export interface NewRoundEventLog {
   type: 'newRound'
   round: number;
   players: string[];
-  timestamp: number;
-}
-
-export interface HoleEventLog {
-  type: 'hole';
-  playerId: string;
-  hole: Hole;
-  timestamp: number;
-}
-
-export interface BoardEventLog {
-  type: 'board'
-  board: Board;
   timestamp: number;
 }
 
@@ -43,13 +29,27 @@ export interface FoldEventLog {
   timestamp: number;
 }
 
+export interface WinnerEventLog {
+  type: 'winner';
+  result: WinningResult;
+  timestamp: number;
+}
+
+export interface FundEventLog {
+  type: 'fund';
+  playerId: string;
+  previousAmount?: number;
+  currentAmount: number;
+  timestamp: number;
+}
+
 export type EventLog =
   | NewRoundEventLog
-  | HoleEventLog
-  | BoardEventLog
   | CheckEventLog
   | RaiseEventLog
   | FoldEventLog
+  | WinnerEventLog
+  | FundEventLog
 ;
 
 export type EventLogs = EventLog[];
@@ -72,35 +72,6 @@ export default function useEventLogs(): EventLogs {
     TexasHoldem.listener.on('players', playersListeners);
     return () => {
       TexasHoldem.listener.off('players', playersListeners);
-    };
-  }, [appendLog]);
-
-  useEffect(() => {
-    const holeListener: TexasHoldemGameRoomEvents['hole'] = (round, whose, hole) => {
-      appendLog({
-        type: 'hole',
-        playerId: whose,
-        hole,
-        timestamp: Date.now(),
-      });
-    };
-    TexasHoldem.listener.on('hole', holeListener);
-    return () => {
-      TexasHoldem.listener.off('hole', holeListener);
-    };
-  }, [appendLog]);
-
-  useEffect(() => {
-    const boardListener: TexasHoldemGameRoomEvents['board'] = (round, board) => {
-      appendLog({
-        type: 'board',
-        board,
-        timestamp: Date.now(),
-      });
-    };
-    TexasHoldem.listener.on('board', boardListener);
-    return () => {
-      TexasHoldem.listener.off('board', boardListener);
     };
   }, [appendLog]);
 
@@ -139,6 +110,36 @@ export default function useEventLogs(): EventLogs {
     TexasHoldem.listener.on('fold', foldListener);
     return () => {
       TexasHoldem.listener.off('fold', foldListener);
+    };
+  }, [appendLog]);
+
+  useEffect(() => {
+    const winnerListener: TexasHoldemGameRoomEvents['winner'] = (result) => {
+      appendLog({
+        type: 'winner',
+        result,
+        timestamp: Date.now(),
+      });
+    };
+    TexasHoldem.listener.on('winner', winnerListener);
+    return () => {
+      TexasHoldem.listener.off('winner', winnerListener);
+    };
+  }, [appendLog]);
+
+  useEffect(() => {
+    const fundListener: TexasHoldemGameRoomEvents['fund'] = (currentAmount, previousAmount, playerId) => {
+      appendLog({
+        type: 'fund',
+        playerId,
+        currentAmount,
+        previousAmount,
+        timestamp: Date.now(),
+      });
+    };
+    TexasHoldem.listener.on('fund', fundListener);
+    return () => {
+      TexasHoldem.listener.off('fund', fundListener);
     };
   }, [appendLog]);
 

@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 import {GameRoomStatus} from "../GameRoom";
 import {TexasHoldem} from "../setup";
 import {Board, Hole} from "../rules";
-import {WinningResult} from "./TexasHoldemGameRoom";
+import {TexasHoldemGameRoomEvents, WinningResult} from "./TexasHoldemGameRoom";
 import { v4 as uuidv4 } from 'uuid';
 
 function useMyPlayerId() {
@@ -73,7 +73,7 @@ function useGameSetup() {
 function useBankrolls() {
   const [bankrolls, setBankrolls] = useState<Map<string, number>>(new Map());
   useEffect(() => {
-    const fundListener = (fund: number, whose: string) => {
+    const fundListener: TexasHoldemGameRoomEvents['fund'] = (fund, previousFund, whose) => {
       setBankrolls(prev => {
         const newBankrolls = new Map(prev);
         newBankrolls.set(whose, fund);

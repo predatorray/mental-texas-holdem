@@ -46,7 +46,7 @@ export interface TexasHoldemGameRoomEvents {
 
   whoseTurn: (round: number, whose: string | null, actionMeta?: {callAmount: number}) => void;
   allSet: (round: number) => void;
-  fund: (fund: number, whose: string) => void;
+  fund: (fund: number, previousFund: number | undefined, whose: string) => void;
   winner: (result: WinningResult) => void;
 }
 
@@ -499,8 +499,9 @@ export class TexasHoldemGameRoom {
   }
 
   private updateFundOfPlayer(whose: string, amount: number) {
+    const previousAmount = this.funds.get(whose);
     this.funds.set(whose, amount);
-    this.emitter.emit('fund', amount, whose);
+    this.emitter.emit('fund', amount, previousAmount, whose);
   }
 
   private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound, whosePreviousTurn: string) {
