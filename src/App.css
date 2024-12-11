@@ -155,6 +155,7 @@
 }
 
 .opponents .opponent .avatar img {
+  width: 48px;
   height: 48px;
 }
 
@@ -307,6 +308,7 @@
 }
 
 .hand-cards .avatar img {
+  width: 56px;
   height: 56px;
 }
 
@@ -462,6 +464,7 @@
 .message-bar .title-bar .profile .avatar {
   margin-left: 5px;
   width: 30px;
+  height: 30px;
   border-radius: 50%;
 }
 
