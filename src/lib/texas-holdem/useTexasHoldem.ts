@@ -89,6 +89,39 @@ function useBankrolls() {
   return bankrolls;
 }
 
+function useScoreBoard() {
+  const [scoreBoard, setScoreBoard] = useState<Map<string, number>>(new Map());
+  const [totalDebt, setTotalDebt] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    const fundListener: TexasHoldemGameRoomEvents['fund'] = (fund, previousFund, whose, borrowed) => {
+      const diff = fund - (previousFund ?? 0);
+      if (!borrowed) {
+        setScoreBoard(prev => {
+          const next = new Map(prev);
+          next.set(whose, (next.get(whose) ?? 0) + diff);
+          return next;
+        });
+      }
+      if (borrowed) {
+        setTotalDebt(prev => {
+          const next = new Map(prev);
+          next.set(whose, (next.get(whose) ?? 0) + diff);
+          return next;
+        })
+      }
+    };
+    TexasHoldem.listener.on('fund', fundListener);
+    return () => {
+      TexasHoldem.listener.off('fund', fundListener);
+    };
+  }, []);
+
+  return {
+    scoreBoard,
+    totalDebt,
+  };
+}
+
 export type BoardStage =
   | 'Preflop'
   | 'Flop'
@@ -372,6 +405,11 @@ export default function useTexasHoldem() {
   const bankrolls = useBankrolls();
 
   const {
+    scoreBoard,
+    totalDebt,
+  } = useScoreBoard();
+
+  const {
     board,
   } = useBoard(currentRound);
 
@@ -429,6 +467,8 @@ export default function useTexasHoldem() {
     button,
     startGame: startNewRound,
     bankrolls,
+    scoreBoard,
+    totalDebt,
     myBetAmount,
     lastWinningResult,
     actionsDone,

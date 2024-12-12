@@ -15,6 +15,7 @@ import MessageBar from "./MessageBar";
 import useChatRoom from "../lib/useChatRoom";
 import useEventLogs from "../lib/texas-holdem/useEventLogs";
 import GithubProjectLink from "./GithubProjectLink";
+import ScoreBoardAndToggle from "./ScoreBoardAndToggle";
 
 function RoomLink(props: {
   playerId: string;
@@ -203,6 +204,8 @@ export default function TexasHoldemGameTable() {
     whoseTurnAndCallAmount,
     startGame,
     bankrolls,
+    scoreBoard,
+    totalDebt,
     potAmount,
     lastWinningResult,
     actionsDone,
@@ -242,6 +245,10 @@ export default function TexasHoldemGameTable() {
   return (
     <div className="App">
       <GithubProjectLink/>
+      {
+        (currentRoundFinished && playerId && round) &&
+          <ScoreBoardAndToggle scoreBoard={scoreBoard} totalDebt={totalDebt} bankrolls={bankrolls}/>
+      }
       {
         (!players && playerId) && (
           <div className="opponents">

@@ -37,6 +37,41 @@
   }
 }
 
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgb(0,0,0);
+  background-color: rgba(0,0,0,0.4);
+}
+
+.modal.visible {
+  display: block;
+}
+
+.modal .modal-content {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.modal .close {
+  color: #aaa;
+  float: right;
+  font-size: 25px;
+  font-weight: bold;
+  font-family: monospace;
+  margin: 10px 20px;
+  cursor: pointer;
+}
+
 .github-project-link {
   position: fixed;
   left: 0;
@@ -54,6 +89,78 @@
 
 .github-project-link:hover > img {
   opacity: 1;
+}
+
+.score-board {
+  background-color: white;
+  min-width: 500px;
+  padding: 0 33px 10px 33px;
+  border-radius: 20px;
+}
+
+.score-board .score-board-table {
+  width: 100%;
+  margin: auto;
+}
+
+.score-board .score-board-table tr th {
+  text-decoration: underline;
+}
+
+.score-board .score-board-table tr td {
+  padding: 5px;
+}
+
+.score-board .score-board-table tr th:first-child {
+  text-align: left;
+}
+
+.score-board .score-board-table tr td:first-child {
+  text-align: left;
+}
+
+.score-board .score-board-table tr th:nth-child(2) {
+  text-align: center;
+}
+
+.score-board .score-board-table tr td:nth-child(2) {
+  text-align: center;
+}
+
+.score-board .score-board-table tr th:last-child {
+  text-align: right;
+}
+
+.score-board .score-board-table tr td:last-child {
+  text-align: right;
+}
+
+.score-board .score-board-table .avatar {
+  display: inline-block;
+  height: 40px;
+  width: 40px;
+}
+
+.score-board-toggle {
+  position: fixed;
+  right: 0;
+  top: 0;
+
+  margin-right: 20px;
+  margin-top: 12px;
+
+  cursor: pointer;
+}
+
+.score-board-toggle > img {
+  height: 30px;
+  width: 30px;
+  opacity: 0.5;
+}
+
+.score-board-toggle:hover > img {
+  opacity: 1;
+  cursor: pointer;
 }
 
 .room-link {

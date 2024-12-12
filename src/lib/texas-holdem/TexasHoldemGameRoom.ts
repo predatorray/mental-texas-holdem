@@ -160,7 +160,10 @@ export class TexasHoldemGameRoom {
   }
 
   async startNewRound(settings: TexasHoldemRoundSettings) {
-    const players: string[] = this.mentalPokerGameRoom.members
+    const players: string[] = this.mentalPokerGameRoom.members;
+    if (players.length < 2) {
+      throw new Error('There should be at least 2 players to start a new round.');
+    }
 
     const sbOffset = this.round % players.length;
     const playersOrdered = [
