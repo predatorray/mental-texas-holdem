@@ -76,7 +76,7 @@ function Staging(props: {
             <button className="action-button start-button" onClick={() => props.startGame()}>
               {props.round ? 'continue' : 'start'}
             </button>
-            {props.round === undefined && <RoomLink playerId={props.playerId}/>}
+            <RoomLink playerId={props.playerId} />
           </>
         )
       }
@@ -260,13 +260,16 @@ export default function TexasHoldemGameTable() {
           <div className="opponents">
             {((): React.ReactElement[] => {
               const myOffset = players.findIndex(p => p === playerId);
-              return [...players.slice(myOffset + 1), ...players.slice(0, myOffset)]
+              const playersStartingAfterMe = myOffset < 0
+                ? [...players]
+                : [...players.slice(myOffset + 1), ...players.slice(0, myOffset)];
+              return playersStartingAfterMe
                 .filter(p => p !== playerId)
                 .map((opponent) => (
                   <div key={opponent} className={mainPotWinners && mainPotWinners.has(opponent) ? 'opponent winner' : 'opponent'}>
                     <PlayerAvatar playerId={opponent} highlight={whoseTurnAndCallAmount?.whoseTurn === opponent}/>
                     {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
-                    {hole && board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
+                    {board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
                       actionsDone && <BetAmount playerId={opponent} actionsDone={actionsDone}/>
                     }
@@ -278,7 +281,7 @@ export default function TexasHoldemGameTable() {
       }
       <div className="table">
         {
-          (players && hole && board) && <CommunityCardsOnTable board={board} potAmount={potAmount} currentRoundFinished={currentRoundFinished} lastWinningResult={lastWinningResult}/>
+          (players && board) && <CommunityCardsOnTable board={board} potAmount={potAmount} currentRoundFinished={currentRoundFinished} lastWinningResult={lastWinningResult}/>
         }
         {
           (currentRoundFinished && playerId) &&

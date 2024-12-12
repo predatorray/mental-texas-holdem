@@ -401,7 +401,7 @@ export default class MentalPokerGameRoom {
   }
 
   private async handleCardDecrypted(e: DecryptCardEvent) {
-    const roundData = this.dataByRounds.get(e.round)!;
+    const roundData = this.getOrCreateDataForRound(e.round);
     const dk = new DecryptionKey(BigInt(e.decryptionKey.d), BigInt(e.decryptionKey.n));
     switch (e.aliceOrBob) {
       case 'alice':

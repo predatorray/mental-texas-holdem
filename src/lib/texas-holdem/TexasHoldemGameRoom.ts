@@ -384,9 +384,9 @@ export class TexasHoldemGameRoom {
   }
 
   private async handleNewRoundEvent(e: NewRoundEvent) {
-    for (let member of this.mentalPokerGameRoom.members) {
-      if (!this.funds.has(member)) {
-        this.updateFundOfPlayer(member, e.settings.initialFundAmount);
+    for (let player of e.players) {
+      if (!this.funds.has(player)) {
+        this.updateFundOfPlayer(player, e.settings.initialFundAmount);
       }
     }
 
