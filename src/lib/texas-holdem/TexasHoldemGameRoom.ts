@@ -46,7 +46,7 @@ export interface TexasHoldemGameRoomEvents {
 
   whoseTurn: (round: number, whose: string | null, actionMeta?: {callAmount: number}) => void;
   allSet: (round: number) => void;
-  fund: (fund: number, previousFund: number | undefined, whose: string) => void;
+  fund: (fund: number, previousFund: number | undefined, whose: string, borrowed?: boolean) => void;
   winner: (result: WinningResult) => void;
 }
 
@@ -160,16 +160,12 @@ export class TexasHoldemGameRoom {
   }
 
   async startNewRound(settings: TexasHoldemRoundSettings) {
-    const playersWithSufficientFund: string[] = this.mentalPokerGameRoom.members
-      .filter(m => (this.funds.get(m) ?? settings.initialFundAmount) >= 2); // 1 BB (2 SB) at least
-    if (playersWithSufficientFund.length < 2) {
-      throw new Error('There should be at least 2 players to start a new round.');
-    }
+    const players: string[] = this.mentalPokerGameRoom.members
 
-    const sbOffset = this.round % playersWithSufficientFund.length;
+    const sbOffset = this.round % players.length;
     const playersOrdered = [
-      ...playersWithSufficientFund.slice(sbOffset),
-      ...playersWithSufficientFund.slice(0, sbOffset),
+      ...players.slice(sbOffset),
+      ...players.slice(0, sbOffset),
     ];
     const sb = playersOrdered[0];
     const bb = playersOrdered[1];
@@ -385,8 +381,9 @@ export class TexasHoldemGameRoom {
 
   private async handleNewRoundEvent(e: NewRoundEvent) {
     for (let player of e.players) {
-      if (!this.funds.has(player)) {
-        this.updateFundOfPlayer(player, e.settings.initialFundAmount);
+      const fund = this.funds.get(player);
+      if (!fund || fund < 2) { // 1 BB (2 SB) at least
+        this.updateFundOfPlayer(player, (fund ?? 0) + e.settings.initialFundAmount, true);
       }
     }
 
@@ -498,10 +495,10 @@ export class TexasHoldemGameRoom {
     }
   }
 
-  private updateFundOfPlayer(whose: string, amount: number) {
+  private updateFundOfPlayer(whose: string, amount: number, borrowed?: boolean) {
     const previousAmount = this.funds.get(whose);
     this.funds.set(whose, amount);
-    this.emitter.emit('fund', amount, previousAmount, whose);
+    this.emitter.emit('fund', amount, previousAmount, whose, borrowed);
   }
 
   private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound, whosePreviousTurn: string) {

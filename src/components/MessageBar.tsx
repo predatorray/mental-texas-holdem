@@ -72,9 +72,14 @@ function EventOrMessage(props: {
       return (
         <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
           <PlayerAvatar playerId={em.playerId}/>'s fund updated: ${em.currentAmount}&nbsp;
-          {em.previousAmount && <>
-            ({(em.currentAmount - em.previousAmount >= 0) ? '+' : '-'}${Math.abs(em.currentAmount - em.previousAmount)})
-          </>}
+          {
+            em.previousAmount && <>
+              ({(em.currentAmount - em.previousAmount >= 0) ? '+' : '-'}${Math.abs(em.currentAmount - em.previousAmount)})
+            </>
+          }
+          {
+            em.borrowed && <>(borrowed)</>
+          }
         </div>
       );
   }

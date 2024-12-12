@@ -40,6 +40,7 @@ export interface FundEventLog {
   playerId: string;
   previousAmount?: number;
   currentAmount: number;
+  borrowed?: boolean;
   timestamp: number;
 }
 
@@ -128,12 +129,13 @@ export default function useEventLogs(): EventLogs {
   }, [appendLog]);
 
   useEffect(() => {
-    const fundListener: TexasHoldemGameRoomEvents['fund'] = (currentAmount, previousAmount, playerId) => {
+    const fundListener: TexasHoldemGameRoomEvents['fund'] = (currentAmount, previousAmount, playerId, borrowed) => {
       appendLog({
         type: 'fund',
         playerId,
         currentAmount,
         previousAmount,
+        borrowed,
         timestamp: Date.now(),
       });
     };
