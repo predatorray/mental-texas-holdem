@@ -16,21 +16,15 @@ import useChatRoom from "../lib/useChatRoom";
 import useEventLogs from "../lib/texas-holdem/useEventLogs";
 import GithubProjectLink from "./GithubProjectLink";
 import ScoreBoardAndToggle from "./ScoreBoardAndToggle";
+import RoomLink from "./RoomLink";
 
-function RoomLink(props: {
-  playerId: string;
+function Invitation(props: {
+  hostPlayerId: string;
 }) {
-  const roomLink = HostId
-    ? window.location.href
-    : `${window.location.href}?gameRoomId=${props.playerId}`;
   return (
     <div className="room-link">
       Invite others by sharing this link below:<br/>
-      <a
-        href={roomLink}
-        target="_blank"
-        rel="noreferrer">{roomLink}
-      </a>
+      <RoomLink hostPlayerId={props.hostPlayerId}/>
     </div>
   );
 }
@@ -77,7 +71,7 @@ function Staging(props: {
             <button className="action-button start-button" onClick={() => props.startGame()}>
               {props.round ? 'continue' : 'start'}
             </button>
-            <RoomLink playerId={props.playerId} />
+            <Invitation hostPlayerId={props.playerId} />
           </>
         )
       }
@@ -265,7 +259,7 @@ function MyBankroll(props: {
   if (!props.playerId || !props.players) {
     return <></>;
   }
-  return <div className="bankroll">${props.bankrolls.get(props.playerId) ?? 0}</div>;
+  return <div className="bankroll">${props.bankrolls.get(props.playerId ?? '') ?? 0}</div>;
 }
 
 function MyActionButtons(props: {
@@ -443,7 +437,7 @@ export default function TexasHoldemGameTable() {
           fireFold={actions.fireFold}
         />
         <MyPlayerAvatar playerId={playerId} names={names} setMyName={setMyName}/>
-        <MyBankroll playerId={playerId} bankrolls={bankrolls}/>
+        <MyBankroll playerId={playerId} players={players} bankrolls={bankrolls}/>
         <MyHandCards hole={hole}/>
       </div>
       { playerId && <MessageBar

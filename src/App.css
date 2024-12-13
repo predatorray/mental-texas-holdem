@@ -296,6 +296,11 @@
   height: 48px;
 }
 
+.opponents .opponent .avatar-label {
+  font-size: 12px;
+  font-weight: normal;
+}
+
 .opponents .opponent .bankroll {
   margin: 10px auto;
   font-family: monospace;
