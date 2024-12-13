@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 import {GameRoomStatus} from "../GameRoom";
 import {TexasHoldem} from "../setup";
 import {Board, Hole} from "../rules";
-import {TexasHoldemGameRoomEvents, WinningResult} from "./TexasHoldemGameRoom";
+import {TexasHoldemGameRoomEvents, TexasHoldemRoundSettings, WinningResult} from "./TexasHoldemGameRoom";
 import { v4 as uuidv4 } from 'uuid';
 
 function useMyPlayerId() {
@@ -439,9 +439,10 @@ export default function useTexasHoldem() {
   const potAmount = usePotAmount();
   const myBetAmount = useMyBetAmount(currentRound, myPlayerId);
 
-  const startNewRound = async () => {
+  const startNewRound = async (settings?: Partial<TexasHoldemRoundSettings>) => {
     await TexasHoldem.startNewRound({
-      initialFundAmount: 100, // TODO read from config
+      bits: settings?.bits,
+      initialFundAmount: settings?.initialFundAmount ?? 100,
     });
   };
 

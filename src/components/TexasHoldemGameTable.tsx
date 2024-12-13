@@ -8,7 +8,7 @@ import ActionButton from "./ActionButton";
 import useTexasHoldem from "../lib/texas-holdem/useTexasHoldem";
 import {Board, Hole} from "../lib/rules";
 import {HostId} from "../lib/setup";
-import {WinningResult} from "../lib/texas-holdem/TexasHoldemGameRoom";
+import {TexasHoldemRoundSettings, WinningResult} from "../lib/texas-holdem/TexasHoldemGameRoom";
 import {rankDescription} from "phe";
 import PlayerAvatar from "./PlayerAvatar";
 import MessageBar from "./MessageBar";
@@ -58,12 +58,18 @@ function Staging(props: {
   round: number | undefined;
   playerId: string;
   members: string[];
-  startGame: () => void;
+  startGame: (settings?: Partial<TexasHoldemRoundSettings>) => void;
 }) {
   const {
     members,
   } = props;
+
   const enoughMembersToPlay = useMemo(() => members.length > 1, [members]);
+
+  const [initialFundAmountInput, setInitialFundAmountInput] = useState('100');
+  const initialFundAmount = useMemo(() => parseInt(initialFundAmountInput), [initialFundAmountInput]);
+  const [bits, setBits] = useState(32);
+
   if (HostId) {
     return (
       <div className="staging">
@@ -71,6 +77,7 @@ function Staging(props: {
       </div>
     );
   }
+
   return (
     <div className="staging host">
       {
@@ -78,7 +85,7 @@ function Staging(props: {
           <>
             <Invitation hostPlayerId={props.playerId} />
             {enoughMembersToPlay
-              ? <button className="action-button start-button" onClick={() => props.startGame()}>continue</button>
+              ? <button className="action-button start-button" onClick={() => props.startGame({bits, initialFundAmount})}>continue</button>
               : <p>Needs 1 more player to start...</p>
             }
           </>
@@ -98,18 +105,19 @@ function Staging(props: {
             </div>
             <div className="input-group">
               <label>Initial Amount ($)</label>
-              <input type="number" value="100"/>
+              <input type="number" value={initialFundAmountInput} onChange={(e) => setInitialFundAmountInput(e.target.value)}/>
             </div>
             <div className="input-group">
               <label>Encryption Key Length (bits)</label>
-              <select>
-                <option selected={true}>32</option>
-                <option>64</option>
+              <select value={bits} onChange={(e) => setBits(Number(e.target.value))}>
+                <option value={32}>32</option>
+                <option value={64}>64</option>
+                <option value={128}>128</option>
               </select>
             </div>
             <Invitation hostPlayerId={props.playerId}/>
             {enoughMembersToPlay
-              ? <button className="action-button start-button" onClick={() => props.startGame()} disabled={!enoughMembersToPlay}>start</button>
+              ? <button className="action-button start-button" onClick={() => props.startGame({bits, initialFundAmount})} disabled={!enoughMembersToPlay}>start</button>
               : <p>Needs 1 more player to start...</p>
             }
           </>
@@ -459,7 +467,7 @@ export default function TexasHoldemGameTable() {
                 round={round}
                 playerId={playerId}
                 members={members}
-                startGame={() => {startGame().catch(e => console.error(e));}}
+                startGame={(settings) => {startGame(settings).catch(e => console.error(e));}}
             />
         }
       </div>
