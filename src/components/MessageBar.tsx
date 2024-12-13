@@ -13,8 +13,8 @@ function EventOrMessage(props: {
 
   const AvatarOrMe = (subProps: { whose: string }) => {
     return subProps.whose === props.myPlayerId
-        ? <b>Me:&nbsp;</b>
-        : <><PlayerAvatar title={props.names.get(subProps.whose)} playerId={subProps.whose}/>:&nbsp;</>
+        ? <></>
+        : <><PlayerAvatar title={props.names.get(subProps.whose)} playerId={subProps.whose}/></>
   }
 
   switch (em.type) {
@@ -22,7 +22,16 @@ function EventOrMessage(props: {
       return (
         <div className={em.whose === props.myPlayerId ? "message mime" : "message"}>
           <AvatarOrMe whose={em.whose}/>
-          <div className="message-text">{em.text}</div>
+          <div className="name-and-message-text">
+            <div className="name">
+              {
+                em.whose === props.myPlayerId
+                  ? <>Me</>
+                  : props.names.get(em.whose) || em.whose
+              }
+            </div>
+            <div className="message-text">{em.text}</div>
+          </div>
         </div>
       );
     case 'newRound':

@@ -668,9 +668,27 @@
 
 .message-bar .message .avatar {
   display: inline-block;
-  height: 20px;
-  width: 20px;
+  height: 25px;
+  width: 25px;
   margin-bottom: 5px;
+  margin-right: 10px;
+}
+
+.message-bar .message .message-text {
+  max-width: 250px;
+  word-wrap: break-word;
+}
+
+.message-bar .message .name-and-message-text .name {
+  color: #666;
+  font-size: 10px;
+  margin-bottom: 2px;
+  max-width: 250px;
+  word-wrap: break-word;
+}
+
+.message-bar .message.mime {
+  text-align: right;
 }
 
 .message-bar .message.system-notification {
