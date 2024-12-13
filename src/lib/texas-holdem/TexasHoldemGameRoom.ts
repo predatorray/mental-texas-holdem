@@ -515,7 +515,7 @@ export class TexasHoldemGameRoom {
         !roundData.foldPlayers.has(player));
 
     if (!whoseTurnNext) {
-      const everyOneElseIsAllinOrFolds = (players.length - roundData.allInPlayers.size + roundData.foldPlayers.size) <= 1;
+      const everyOneElseIsAllinOrFolds = (players.length - roundData.allInPlayers.size - roundData.foldPlayers.size) <= 1;
       roundData.calledPlayers.clear();
       this.emitter.emit('allSet', round);
       this.emitter.emit('whoseTurn', round, null);
