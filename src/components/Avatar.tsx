@@ -2,7 +2,7 @@ import React, {ImgHTMLAttributes} from 'react';
 
 type AvatarProperties =
   Pick<ImgHTMLAttributes<HTMLImageElement>,
-    'alt' | 'src' | 'className'> & {
+    'alt' | 'src' | 'className' | 'title'> & {
   highlight?: boolean;
 };
 

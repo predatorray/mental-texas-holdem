@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 
 import '../App.css';
 
@@ -190,6 +190,133 @@ function BetAmount(props: {
   ) : <></>;
 }
 
+function MyPlayerAvatar(props: {
+  playerId: string | undefined;
+  names: Map<string, string>;
+  setMyName: (name: string) => void;
+}) {
+  const {
+    playerId,
+    names,
+    setMyName,
+  } = props;
+
+  const [nameInputValue, setNameInputValue] = useState('');
+
+  const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = useCallback(e => {
+    setNameInputValue(e.target.value);
+  }, []);
+
+  const handleInputKeyUp: React.KeyboardEventHandler<HTMLInputElement>  = useCallback(e => {
+    if (e.key === 'Enter' && nameInputValue) {
+      setChangingName(false);
+      setMyName(nameInputValue);
+    }
+  }, [setMyName, nameInputValue]);
+
+  const [changingName, setChangingName] = useState<boolean>(false);
+
+  if (!playerId) {
+    return <></>;
+  }
+
+  const playerName = names.get(playerId);
+  if (playerName && !changingName) {
+    return (
+      <PlayerAvatar playerId={playerId}>
+        <span className="clickable" onClick={() => setChangingName(true)}>{playerName}</span>
+      </PlayerAvatar>
+    );
+  }
+
+  return (
+    <PlayerAvatar playerId={playerId}>
+      <input className="name-input"
+             type="text"
+             placeholder="Enter your name..."
+             value={nameInputValue}
+             onChange={handleInputChange}
+             onKeyUp={handleInputKeyUp}
+             onFocus={(e) => e.target.setSelectionRange(0, e.target.value.length)}
+             autoFocus={true}/>
+    </PlayerAvatar>
+  );
+}
+
+function MyBetAmount(props: {
+  playerId?: string;
+  actionsDone: Map<string, string | number> | null;
+}) {
+  const {
+    playerId,
+    actionsDone,
+  } = props;
+  if (!playerId || !actionsDone) {
+    return <></>;
+  }
+  return <BetAmount playerId={playerId} actionsDone={actionsDone}/>;
+}
+
+function MyBankroll(props: {
+  playerId?: string;
+  players?: string[];
+  bankrolls: Map<string, number>;
+}) {
+  if (!props.playerId || !props.players) {
+    return <></>;
+  }
+  return <div className="bankroll">${props.bankrolls.get(props.playerId) ?? 0}</div>;
+}
+
+function MyActionButtons(props: {
+  playerId?: string;
+  players?: string[];
+  whoseTurnAndCallAmount: {
+    whoseTurn: string;
+    callAmount: number;
+  } | null;
+  hole?: Hole;
+  board: Board;
+  currentRoundFinished: boolean;
+  potAmount: number;
+  bankrolls: Map<string, number>;
+  fireBet: (amount: number) => void;
+  fireFold: () => void;
+}) {
+  const {
+    playerId,
+    players,
+    whoseTurnAndCallAmount,
+    hole,
+    board,
+    currentRoundFinished,
+    potAmount,
+    bankrolls,
+    fireBet,
+    fireFold,
+  } = props;
+
+  if (!playerId || !players || whoseTurnAndCallAmount?.whoseTurn !== playerId || !board || !hole || currentRoundFinished) {
+    return <></>;
+  }
+
+  return <ActionButtons
+    potAmount={potAmount}
+    bankroll={bankrolls.get(playerId) ?? 0}
+    fireBet={fireBet}
+    fireFold={fireFold}
+    callAmount={whoseTurnAndCallAmount?.callAmount ?? 0}
+  />;
+}
+
+function MyHandCards(props: {
+  hole?: Hole;
+}) {
+  if (!props.hole) {
+    return <></>;
+  }
+  return <HandCards hole={props.hole}/>;
+}
 
 export default function TexasHoldemGameTable() {
   const {
@@ -236,6 +363,8 @@ export default function TexasHoldemGameTable() {
   }, [mainPotWinners, playerId]);
 
   const {
+    names,
+    setMyName,
     messages,
     sendMessage,
   } = useChatRoom();
@@ -247,7 +376,7 @@ export default function TexasHoldemGameTable() {
       <GithubProjectLink/>
       {
         (currentRoundFinished && playerId && round) &&
-          <ScoreBoardAndToggle scoreBoard={scoreBoard} totalDebt={totalDebt} bankrolls={bankrolls}/>
+          <ScoreBoardAndToggle scoreBoard={scoreBoard} totalDebt={totalDebt} bankrolls={bankrolls} names={names}/>
       }
       {
         (!players && playerId) && (
@@ -255,7 +384,7 @@ export default function TexasHoldemGameTable() {
             {
               members.filter(member => member !== playerId).map((member) => (
                 <div key={member} className="opponent">
-                  <PlayerAvatar playerId={member}/>
+                  <PlayerAvatar playerId={member} playerName={names.get(member)}/>
                 </div>
               ))
             }
@@ -274,7 +403,7 @@ export default function TexasHoldemGameTable() {
                 .filter(p => p !== playerId)
                 .map((opponent) => (
                   <div key={opponent} className={mainPotWinners && mainPotWinners.has(opponent) ? 'opponent winner' : 'opponent'}>
-                    <PlayerAvatar playerId={opponent} highlight={whoseTurnAndCallAmount?.whoseTurn === opponent}/>
+                    <PlayerAvatar playerId={opponent} playerName={names.get(opponent)} highlight={whoseTurnAndCallAmount?.whoseTurn === opponent}/>
                     {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
                     {board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
@@ -300,25 +429,29 @@ export default function TexasHoldemGameTable() {
         }
       </div>
       <div className={iAmWinner ? 'hand-cards winner' : 'hand-cards'}>
-        {
-          (playerId && actionsDone) && <BetAmount playerId={playerId} actionsDone={actionsDone}/>
-        }
-        {
-          (playerId && players && whoseTurnAndCallAmount?.whoseTurn === playerId && board && hole && !currentRoundFinished) && <ActionButtons
-                potAmount={potAmount}
-                bankroll={bankrolls.get(playerId) ?? 0}
-                fireBet={actions.fireBet}
-                fireFold={actions.fireFold}
-                callAmount={whoseTurnAndCallAmount?.callAmount ?? 0}
-            />
-        }
-
-        {playerId && <PlayerAvatar playerId={playerId}/>}
-        {playerId && players && <div className="bankroll">${bankrolls.get(playerId) ?? 0}</div>}
-
-        {hole && <HandCards hole={hole}/>}
+        <MyBetAmount playerId={playerId} actionsDone={actionsDone}/>
+        <MyActionButtons
+          playerId={playerId}
+          players={players}
+          whoseTurnAndCallAmount={whoseTurnAndCallAmount}
+          board={board}
+          hole={hole}
+          currentRoundFinished={currentRoundFinished}
+          potAmount={potAmount}
+          bankrolls={bankrolls}
+          fireBet={actions.fireBet}
+          fireFold={actions.fireFold}
+        />
+        <MyPlayerAvatar playerId={playerId} names={names} setMyName={setMyName}/>
+        <MyBankroll playerId={playerId} bankrolls={bankrolls}/>
+        <MyHandCards hole={hole}/>
       </div>
-      { playerId && <MessageBar playerId={playerId} eventLogs={eventLogs} messages={messages} onMessage={sendMessage} /> }
+      { playerId && <MessageBar
+          playerId={playerId}
+          names={names}
+          eventLogs={eventLogs}
+          messages={messages}
+          onMessage={sendMessage} /> }
     </div>
   );
 }

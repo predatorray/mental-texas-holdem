@@ -6,6 +6,7 @@ export default function ScoreBoardAndToggle(props: {
   scoreBoard: Map<string, number>;
   totalDebt: Map<string, number>;
   bankrolls: Map<string, number>;
+  names: Map<string, string>;
 }) {
   const [visible, setVisible] = useState(false);
   return (
@@ -20,8 +21,9 @@ export default function ScoreBoardAndToggle(props: {
             <thead>
             <tr>
               <th scope="col"></th>
+              <th scope="col">Name</th>
               <th scope="col">Current Bankroll</th>
-              <th scope="col">Total Win / Lose</th>
+              <th scope="col">Total</th>
             </tr>
             </thead>
             <tbody>
@@ -29,6 +31,7 @@ export default function ScoreBoardAndToggle(props: {
               Array.from(props.scoreBoard.entries()).map(([player, score], i) =>
                 <tr key={i}>
                   <td><PlayerAvatar playerId={player}/></td>
+                  <td>{props.names.get(player) ?? '-'}</td>
                   <td>${Math.abs(props.bankrolls.get(player) ?? 0)}</td>
                   <td>{score >= 0 ? '+' : '-'}${Math.abs(score)}</td>
                 </tr>

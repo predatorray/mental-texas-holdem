@@ -7,13 +7,14 @@ import {rankDescription} from "phe";
 function EventOrMessage(props: {
   myPlayerId: string;
   eventOrMessage: EventLog | Message;
+  names: Map<string, string>;
 }) {
   const em = props.eventOrMessage;
 
   const AvatarOrMe = (subProps: { whose: string }) => {
     return subProps.whose === props.myPlayerId
         ? <b>Me:&nbsp;</b>
-        : <><PlayerAvatar playerId={subProps.whose}/>:&nbsp;</>
+        : <><PlayerAvatar title={props.names.get(subProps.whose)} playerId={subProps.whose}/>:&nbsp;</>
   }
 
   switch (em.type) {
@@ -90,12 +91,14 @@ export default function MessageBar(props: {
   eventLogs: EventLogs;
   messages: Messages;
   onMessage?: (message: string) => void;
+  names: Map<string, string>;
 }) {
   const {
     playerId,
     eventLogs,
     messages,
     onMessage,
+    names,
   } = props;
   const eventsAndMessage: Array<EventLog | Message> = useMemo(() => {
     const merged = [];
@@ -166,7 +169,7 @@ export default function MessageBar(props: {
           : (
             <div ref={messagesDivRef} className="messages">
               {
-                eventsAndMessage.map((em, i) => <EventOrMessage key={i} myPlayerId={playerId} eventOrMessage={em}/>)
+                eventsAndMessage.map((em, i) => <EventOrMessage key={i} myPlayerId={playerId} names={names} eventOrMessage={em}/>)
               }
             </div>
           )

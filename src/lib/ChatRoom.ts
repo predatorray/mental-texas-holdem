@@ -3,15 +3,22 @@ import {GameEvent, GameRoomEvents} from "./GameRoom";
 import EventEmitter from "eventemitter3";
 import LifecycleManager from "./LifecycleManager";
 
+export interface GreetingEvent {
+  type: 'greeting';
+  myNameIs: string;
+}
+
 export interface TextMessageEvent {
   type: 'text';
   text: string;
 }
 
 export type ChatRoomEvent =
+  | GreetingEvent
   | TextMessageEvent;
 
 export interface ChatRoomEvents {
+  name: (name: string, whose: string) => void;
   text: (text: string, fromWhom: string) => void;
 }
 
@@ -32,11 +39,25 @@ export default class ChatRoom {
 
     this.gameRoom.listener.on('event', this.lcm.register(({data}, whom) => {
       switch (data.type) {
+        case 'greeting':
+          this.emitter.emit('name', data.myNameIs, whom);
+          break;
         case 'text':
           this.emitter.emit('text', data.text, whom);
           break;
       }
     }, listener => this.gameRoom.listener.off('event', listener)));
+  }
+
+  async setMyName(name: string) {
+    await this.gameRoom.emitEvent({
+      type: 'public',
+      sender: await this.gameRoom.peerIdAsync,
+      data: {
+        type: 'greeting',
+        myNameIs: name,
+      },
+    });
   }
 
   async sendTextMessage(text: string, recipient?: string) {

@@ -31,12 +31,34 @@ export default function useChatRoom() {
     }
   }, []);
 
+  const [names, setNames] = useState(new Map<string, string>());
+
+  useEffect(() => {
+    const nameListener = (name: string, whose: string) => {
+      setNames(prev => {
+        const next = new Map(prev);
+        next.set(whose, name);
+        return next;
+      });
+    };
+    Chat.listener.on('name', nameListener);
+    return () => {
+      Chat.listener.off('name', nameListener);
+    }
+  }, []);
+
+  const setMyName = (name: string) => {
+    Chat.setMyName(name);
+  };
+
   const sendMessage = (text: string) => {
     Chat.sendTextMessage(text);
   };
 
   return {
+    names,
     messages,
+    setMyName,
     sendMessage,
   };
 }
