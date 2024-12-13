@@ -22,8 +22,8 @@ function Invitation(props: {
   hostPlayerId: string;
 }) {
   return (
-    <div className="room-link">
-      Invite others by sharing this link below:<br/>
+    <div className="invitation">
+      <span>Invite others by sharing this link: </span>
       <RoomLink hostPlayerId={props.hostPlayerId}/>
     </div>
   );
@@ -57,21 +57,61 @@ function HandCards(props: {
 function Staging(props: {
   round: number | undefined;
   playerId: string;
+  members: string[];
   startGame: () => void;
 }) {
+  const {
+    members,
+  } = props;
+  const enoughMembersToPlay = useMemo(() => members.length > 1, [members]);
+  if (HostId) {
+    return (
+      <div className="staging">
+        <p>Waiting for the host to start the game...</p>
+      </div>
+    );
+  }
   return (
-    <div className="staging">
+    <div className="staging host">
       {
-        HostId ? (
+        props.round ? (
           <>
-            <p>Waiting for the host to start the game...</p>
+            <Invitation hostPlayerId={props.playerId} />
+            {enoughMembersToPlay
+              ? <button className="action-button start-button" onClick={() => props.startGame()}>continue</button>
+              : <p>Needs 1 more player to start...</p>
+            }
           </>
         ) : (
           <>
-            <button className="action-button start-button" onClick={() => props.startGame()}>
-              {props.round ? 'continue' : 'start'}
-            </button>
-            <Invitation hostPlayerId={props.playerId} />
+            <h4>Game Settings</h4>
+            <hr/>
+            <div className="input-group">
+              <div className="input-group">
+                <label>Small Blind ($)</label>
+                <input type="text" readOnly={true} value="1"/>
+              </div>
+              <div className="input-group">
+                <label>Big Blind ($)</label>
+                <input type="text" readOnly={true} value="2"/>
+              </div>
+            </div>
+            <div className="input-group">
+              <label>Initial Amount ($)</label>
+              <input type="number" value="100"/>
+            </div>
+            <div className="input-group">
+              <label>Encryption Key Length (bits)</label>
+              <select>
+                <option selected={true}>32</option>
+                <option>64</option>
+              </select>
+            </div>
+            <Invitation hostPlayerId={props.playerId}/>
+            {enoughMembersToPlay
+              ? <button className="action-button start-button" onClick={() => props.startGame()} disabled={!enoughMembersToPlay}>start</button>
+              : <p>Needs 1 more player to start...</p>
+            }
           </>
         )
       }
@@ -418,6 +458,7 @@ export default function TexasHoldemGameTable() {
             <Staging
                 round={round}
                 playerId={playerId}
+                members={members}
                 startGame={() => {startGame().catch(e => console.error(e));}}
             />
         }

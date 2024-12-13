@@ -11,7 +11,7 @@ export default function RoomLink(props: {
     <a
       href={roomLink}
       target="_blank"
-      rel="noreferrer">{roomLink}
+      rel="noreferrer"><b>Invitation Link</b>
     </a>
   );
 }
