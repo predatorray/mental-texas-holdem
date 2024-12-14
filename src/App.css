@@ -37,6 +37,7 @@
   }
 }
 
+input[type="number"],
 input[type="text"] {
   outline: none;
   background-color: #eef3f8;
@@ -48,7 +49,8 @@ input[type="text"] {
   border: 2px solid transparent;
 }
 
-input[type="text"][readonly] {
+input[type="number"][disabled],
+input[type="text"][disabled] {
   background-color: #868a8a;
 }
 
@@ -70,6 +72,24 @@ select {
 
 .input-group:has(> .input-group) {
   flex-direction: row;
+}
+
+.input-group:has(> input):has(> button) {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+
+.input-group:has(> input):has(> button) > input {
+  flex-basis: 80%;
+  border-radius: 4px 0 0 4px;
+}
+
+.input-group:has(> input):has(> button) > button {
+  border-radius: 0 4px 4px 0;
+  width: 30px;
+  margin-top: 2px;
+  border-left: 1px solid black;
 }
 
 .input-group > .input-group {
@@ -94,6 +114,15 @@ select {
   width: 100%;
   margin-top: 2px;
   padding-left: 10px;
+}
+
+.input-group > button {
+  border-radius: 4px;
+  box-sizing: border-box;
+  height: 30px;
+  flex-grow: 1;
+  border: none;
+  border-left: 1px solid black;
 }
 
 .clickable {
@@ -226,23 +255,17 @@ select {
   cursor: pointer;
 }
 
-.invitation {
-  margin-top: 5px;
-  margin-bottom: 5px;
-
-  color: #fff;
-  line-height: 14px;
-  font-size: 12px;
-  text-align: left;
-
-  text-overflow: ellipsis;
-  overflow: hidden;
-  max-width: 500px;
-  white-space: nowrap;
+.invitation .copy-link-button {
+  box-sizing: border-box;
+  outline: none;
+  background-color: #f6f6f6;
+  font-weight: bold;
+  cursor: pointer;
 }
 
-.invitation a {
-  color: #fff;
+.invitation .copy-link-button:hover {
+  color: #f6f6f6;
+  background-color: #888;
 }
 
 .chip {

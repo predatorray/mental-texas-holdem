@@ -1,13 +1,12 @@
 import {test, expect} from '@playwright/test';
+import {testMultiplePeers} from "./common";
 
 test('Game of two peers check/call only', async ({ browser }) => {
-  const context = await browser.newContext();
-  const hostPage = await context.newPage();
-  await hostPage.goto('.');
-  const [guestPage] = await Promise.all([
-    context.waitForEvent('page'),
-    await hostPage.getByTestId('room-link').click(),
-  ]);
+  const {
+    hostPage,
+    guestPages,
+  } = await testMultiplePeers({browser});
+  const guestPage = guestPages[0];
 
   const startButton = hostPage.getByTestId('start-button');
   await expect(startButton).toBeVisible();

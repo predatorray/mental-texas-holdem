@@ -1,4 +1,5 @@
 import {test, expect} from '@playwright/test';
+import {testMultiplePeers} from "./common";
 
 test('Start button is invisible if there is only one player', async ({ page }) => {
   await page.goto('.');
@@ -8,17 +9,11 @@ test('Start button is invisible if there is only one player', async ({ page }) =
 });
 
 test('Start button is visible if there are two players', async ({ browser }) => {
-  const context = await browser.newContext();
-
-  const hostPage = await context.newPage();
-  await hostPage.goto('.');
-  await expect(hostPage.getByTestId('start-button')).not.toBeVisible();
-  await expect(hostPage.getByTestId('continue-button')).not.toBeVisible();
-
-  const [guestPage] = await Promise.all([
-    context.waitForEvent('page'),
-    await hostPage.getByTestId('room-link').click(),
-  ]);
+  const {
+    hostPage,
+    guestPages,
+  } = await testMultiplePeers({browser});
+  const guestPage = guestPages[0];
 
   await expect(guestPage.getByTestId('start-button')).not.toBeVisible();
   await expect(guestPage.getByTestId('continue-button')).not.toBeVisible();
@@ -30,13 +25,11 @@ test('Start button is visible if there are two players', async ({ browser }) => 
 });
 
 test('Message Bars are working between two peers', async ({ browser }) => {
-  const context = await browser.newContext();
-  const hostPage = await context.newPage();
-  await hostPage.goto('.');
-  const [guestPage] = await Promise.all([
-    context.waitForEvent('page'),
-    await hostPage.getByTestId('room-link').click(),
-  ]);
+  const {
+    hostPage,
+    guestPages,
+  } = await testMultiplePeers({browser});
+  const guestPage = guestPages[0];
 
   const hostMessageInput = hostPage.getByTestId('message-input');
   await hostMessageInput.fill('ABC');

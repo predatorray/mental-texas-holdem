@@ -31,7 +31,7 @@ export default function ScoreBoardAndToggle(props: {
             </thead>
             <tbody>
             {
-              Array.from(props.scoreBoard.entries()).map(([player, score], i) =>
+              Array.from(props.scoreBoard.entries()).sort(([p1, s1], [p2, s2]) => s2 - s1).map(([player, score], i) =>
                 <tr key={i}>
                   <td><PlayerAvatar playerId={player}/></td>
                   <td>{props.names.get(player) ?? '-'}</td>

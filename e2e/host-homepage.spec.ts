@@ -1,18 +1,5 @@
-import {test, expect, Locator, Page} from '@playwright/test';
-
-const expectTestIdsToBeVisible = async (page: Page, testids: (string | string[])[]) => {
-  for (let testid of testids) {
-    if (typeof testid === 'string') {
-      await expect(page.getByTestId(testid)).toBeVisible();
-    } else {
-      let locator: Locator | null = null;
-      for (let subpath of testid) {
-        locator = (locator ?? page).getByTestId(subpath);
-      }
-      await expect(locator!).toBeVisible();
-    }
-  }
-}
+import {test, expect} from '@playwright/test';
+import {expectTestIdsToBeVisible} from "./common";
 
 test('The components are expected to be visible when opened', async ({ page }) => {
   await page.goto('.');

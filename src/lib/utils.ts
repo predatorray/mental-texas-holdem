@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import {useEffect} from "react";
 
 export function concatBuffers(buffers: Array<ArrayBuffer>): ArrayBuffer {
   const totalBytes = buffers.map(b => b.byteLength).reduce((a, b) => a + b);
@@ -51,110 +51,11 @@ export function hexToArrayBuffer(hex: string): ArrayBuffer {
   return i === bytes.length ? bytes : bytes.slice(0, i);
 }
 
-export function usePrevious<T>(value: T): T | undefined {
-  const prevRef = useRef<T>();
-  const curRef = useRef<T>();
-  if (curRef.current !== value) {
-    prevRef.current = curRef.current;
-    curRef.current = value;
-  }
-  return prevRef.current;
-}
-
-export function useSet<T>(): [
-  Set<T>,
-  (value: T) => void,
-  (value: T) => void,
-  () => void,
-] {
-  const [set, setSet] = useState<Set<T>>(new Set());
-  const add = useCallback((value: T) => {
-    setSet(curr => {
-      if (curr.has(value)) {
-        return curr;
-      }
-      const next = new Set(curr);
-      next.add(value);
-      return next;
-    });
-  }, [setSet]);
-  const remove = useCallback((value: T) => {
-    setSet(curr => {
-      if (!curr.has(value)) {
-        return curr;
-      }
-      const next = new Set(curr);
-      next.delete(value);
-      return next;
-    });
-  }, [setSet]);
-  const removeAll = useCallback(() => {
-    setSet(curr => {
-      if (curr.size === 0) {
-        return curr;
-      } else {
-        return new Set();
-      }
-    });
-  }, [setSet]);
-  return [
-    set,
-    add,
-    remove,
-    removeAll,
-  ];
-}
-
-export function useMap<K, V>(initial?: Map<K, V>): [
-  Map<K, V>,
-  (k: K, v: V) => void,
-  (k: K, updatePrev: (prev: V | undefined) => V) => void,
-  (k: K) => void,
-  () => void,
-  React.Dispatch<React.SetStateAction<Map<K, V>>>,
-] {
-  const [map, setMap] = useState<Map<K, V>>(initial ?? new Map());
-  const set = useCallback((k: K, v: V) => {
-    setMap(curr => {
-      if (curr.get(k) === v) {
-        return curr;
-      }
-      const next = new Map(curr);
-      next.set(k, v);
-      return next;
-    })
-  }, [setMap]);
-  const update = useCallback((k: K, updatePrev: (prev: V | undefined) => V) => {
-    setMap(curr => {
-      const prev = curr.get(k);
-      const newValue = updatePrev(curr.get(k));
-      if (prev === newValue) {
-        return curr;
-      }
-      const next = new Map(curr);
-      next.set(k, newValue);
-      return next;
-    });
-  }, [setMap]);
-  const remove = useCallback((k: K) => {
-    setMap(curr => {
-      if (!curr.has(k)) {
-        return curr;
-      }
-      const next = new Map(curr);
-      next.delete(k);
-      return next;
-    })
-  }, [setMap]);
-  const removeAll = useCallback(() => {
-    setMap(new Map());
-  }, [setMap]);
-  return [
-    map,
-    set,
-    update,
-    remove,
-    removeAll,
-    setMap,
-  ];
+export function useTimeout(functionRef: () => void, delay: number) {
+  useEffect(() => {
+    const timeoutId = setTimeout(functionRef, delay);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [functionRef, delay]);
 }
