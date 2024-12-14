@@ -5,6 +5,7 @@ import GameRoom, { DataConnectionLike, DataConnectionLikeEvents, GameEvent, Memb
 class MockDataConnection extends EventEmitter<DataConnectionLikeEvents> implements DataConnectionLike {
   peer: string;
   dataSent: any[] = [];
+  closed: boolean = false;
 
   private paired?: MockDataConnection;
 
@@ -24,6 +25,7 @@ class MockDataConnection extends EventEmitter<DataConnectionLikeEvents> implemen
   }
 
   close(): void {
+    this.closed = true;
   }
 
   get lastDataSent() {
@@ -410,4 +412,18 @@ describe('GameRoom', () => {
     expect(guest1GameRoomEvent.type).toBe('private');
     expect(guest1GameRoomEvent.sender).toBe(DEFAULT_HOST_ID);
   }, 30000);
+
+  test('resources are released after closed', async () => {
+    const {mockHostPeer, hostGameRoom} = openHost();
+    const guestId = 'guest';
+    const {mockGuestPeer, guestGameRoom} = openGuest(guestId);
+    connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
+
+    await guestGameRoom.close();
+    await hostGameRoom.close();
+
+    for (let connection of [...mockHostPeer.connections, ...mockGuestPeer.connections]) {
+      expect(connection.closed).toBe(true);
+    }
+  });
 });

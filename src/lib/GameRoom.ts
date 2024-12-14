@@ -190,6 +190,7 @@ export default class GameRoom<T> {
           return;
         });
         hostConn.on('close', () => {
+          this._status = 'Closed';
           console.info(`The remote connection is closed (${options.hostId}).`);
         });
         hostConn.on('data', (data) => {
@@ -252,7 +253,6 @@ export default class GameRoom<T> {
           this.publicEvents.push([e, whom]);
         }
       }, listener => this.emitter.off('event', listener)));
-
     }
 
     peer.on('close', () => {
@@ -261,10 +261,10 @@ export default class GameRoom<T> {
     });
   }
 
-  close() {
-    this.hostConnectionPromise.then(hostConn => hostConn?.close());
+  async close() {
+    await this.hostConnectionPromise.then(hostConn => hostConn?.close());
     for (let connPromise of Array.from(this.guestConnectionPromises.values())) {
-      connPromise.then((conn) => {
+      await connPromise.then((conn) => {
         conn.close();
       });
     }
