@@ -2,32 +2,55 @@ import React, {act} from 'react';
 import {fireEvent, render, screen} from '@testing-library/react';
 import ScoreBoardAndToggle from "./ScoreBoardAndToggle";
 
-test('rendering does not crash', () => {
-  render(<ScoreBoardAndToggle
-    scoreBoard={new Map()}
-    totalDebt={new Map()}
-    bankrolls={new Map()}
-    names={new Map()}/>);
-});
+describe('ScoreBoardAndToggle', () => {
+  const scoreBoard = new Map<string, number>();
+  scoreBoard.set('p1', -1);
+  scoreBoard.set('p2', 1);
 
-test('hiding the score board', async () => {
-  act(() => {
+  const totalDebt = new Map<string, number>();
+  scoreBoard.set('p1', 200);
+  scoreBoard.set('p2', 100);
+
+  const bankrolls = new Map<string, number>();
+  scoreBoard.set('p1', -50);
+  scoreBoard.set('p2', 150);
+
+  const names = new Map<string, string>();
+  names.set('p1', 'Alice');
+
+  test('rendering does not crash', () => {
+
     render(<ScoreBoardAndToggle
-      scoreBoard={new Map()}
-      totalDebt={new Map()}
-      bankrolls={new Map()}
-      names={new Map()}
-      scoreBoardDataTestId="score-board"
-    />);
+      scoreBoard={scoreBoard}
+      totalDebt={totalDebt}
+      bankrolls={bankrolls}
+      names={names}/>);
   });
 
-  const scoreBoard = await screen.findByTestId('score-board');
-  expect(scoreBoard.getAttribute('class')).not.toContain('visible');
+  test('opening and hiding the score board', async () => {
+    act(() => {
+      render(<ScoreBoardAndToggle
+        scoreBoard={scoreBoard}
+        totalDebt={totalDebt}
+        bankrolls={bankrolls}
+        names={names}
+        scoreBoardDataTestId="score-board"
+      />);
+    });
 
-  const toggle = await screen.findByTestId('score-board-toggle');
-  act(() => {
-    fireEvent.click(toggle);
+    const scoreBoardComponent = await screen.findByTestId('score-board');
+    expect(scoreBoardComponent.getAttribute('class')).not.toContain('visible');
+
+    const toggle = await screen.findByTestId('score-board-toggle');
+    act(() => {
+      fireEvent.click(toggle);
+    });
+
+    expect(scoreBoardComponent.getAttribute('class')).toContain('visible');
+
+    act(() => {
+      screen.getByTestId('modal-close').click();
+    });
+    expect(scoreBoardComponent.getAttribute('class')).not.toContain('visible');
   });
-
-  expect(scoreBoard.getAttribute('class')).toContain('visible');
 });
