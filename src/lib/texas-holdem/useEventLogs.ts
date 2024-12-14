@@ -3,7 +3,7 @@ import {TexasHoldem} from "../setup";
 import {TexasHoldemGameRoomEvents, WinningResult} from "./TexasHoldemGameRoom";
 
 export interface NewRoundEventLog {
-  type: 'newRound'
+  type: 'newRound';
   round: number;
   players: string[];
   timestamp: number;

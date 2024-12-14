@@ -154,10 +154,7 @@ export default function MessageBar(props: DataTestIdAttributes & {
   const messagesDivRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const messagesDiv = messagesDivRef.current;
-    if (!messagesDiv) {
-      return;
-    }
-    messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+    messagesDiv?.scrollTo?.(0, messagesDiv.scrollHeight);
   }, [messages, eventLogs]);
 
   return (
