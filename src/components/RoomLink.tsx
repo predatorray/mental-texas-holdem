@@ -1,9 +1,10 @@
 import {HostId} from "../lib/setup";
 import React from "react";
+import DataTestIdAttributes from "../lib/types";
 
 export default function RoomLink(props: {
   hostPlayerId: string;
-}) {
+} & DataTestIdAttributes) {
   const roomLink = HostId
     ? window.location.href
     : `${window.location.href}?gameRoomId=${props.hostPlayerId}`;
@@ -11,7 +12,10 @@ export default function RoomLink(props: {
     <a
       href={roomLink}
       target="_blank"
-      rel="noreferrer"><b>Invitation Link</b>
+      rel="noreferrer"
+      data-testid={props['data-testid'] ?? 'room-link'}
+    >
+      <b>Invitation Link</b>
     </a>
   );
 }

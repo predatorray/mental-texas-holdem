@@ -9,3 +9,8 @@ export type EventListener<
   EventEmitter<EventTypes, Context>,
   'emit'
 >;
+
+export default interface DataTestIdAttributes {
+  'data-testid'?: string;
+}
+

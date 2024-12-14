@@ -3,11 +3,13 @@ import {Message, Messages} from "../lib/useChatRoom";
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import PlayerAvatar from "./PlayerAvatar";
 import {rankDescription} from "phe";
+import DataTestIdAttributes from "../lib/types";
 
 function EventOrMessage(props: {
   myPlayerId: string;
   eventOrMessage: EventLog | Message;
   names: Map<string, string>;
+  dataTestId?: string;
 }) {
   const em = props.eventOrMessage;
 
@@ -20,7 +22,7 @@ function EventOrMessage(props: {
   switch (em.type) {
     case 'message':
       return (
-        <div className={em.whose === props.myPlayerId ? "message mime" : "message"}>
+        <div className={em.whose === props.myPlayerId ? "message mime" : "message"} data-testid={props.dataTestId}>
           <AvatarOrMe whose={em.whose}/>
           <div className="name-and-message-text">
             <div className="name">
@@ -36,11 +38,11 @@ function EventOrMessage(props: {
       );
     case 'newRound':
       return (
-        <div className="message system-notification">Round {em.round} started</div>
+        <div className="message system-notification" data-testid={props.dataTestId}>Round {em.round} started</div>
       );
     case 'raise':
       return (
-        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"} data-testid={props.dataTestId}>
           <AvatarOrMe whose={em.playerId}/>raised / called ${em.raisedAmount}
           {
             em.allin && <b>&nbsp;ALL-IN</b>
@@ -49,19 +51,19 @@ function EventOrMessage(props: {
       );
     case 'fold':
       return (
-        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"} data-testid={props.dataTestId}>
           <AvatarOrMe whose={em.playerId}/>fold
         </div>
       );
     case 'check':
       return (
-        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"} data-testid={props.dataTestId}>
           <AvatarOrMe whose={em.playerId}/>checked
         </div>
       );
     case 'winner':
       return (
-        <div className="message system-notification">
+        <div className="message system-notification" data-testid={props.dataTestId}>
           {
             em.result.how === 'LastOneWins' ? (
               <>
@@ -80,7 +82,7 @@ function EventOrMessage(props: {
       );
     case 'fund':
       return (
-        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"}>
+        <div className={em.playerId === props.myPlayerId ? "message mime system-notification" : "message system-notification"} data-testid={props.dataTestId}>
           <PlayerAvatar playerId={em.playerId}/>'s fund updated: ${em.currentAmount}&nbsp;
           {
             em.previousAmount && <>
@@ -95,7 +97,7 @@ function EventOrMessage(props: {
   }
 }
 
-export default function MessageBar(props: {
+export default function MessageBar(props: DataTestIdAttributes & {
   playerId: string;
   eventLogs: EventLogs;
   messages: Messages;
@@ -159,8 +161,8 @@ export default function MessageBar(props: {
   }, [messages, eventLogs]);
 
   return (
-    <div className={collapsed ? "message-bar collapsed" :  "message-bar"}>
-      <div className="title-bar" onClick={flipCollapsed}>
+    <div className={collapsed ? "message-bar collapsed" :  "message-bar"} data-testid={props['data-testid'] ?? 'message-bar'}>
+      <div className="title-bar" onClick={flipCollapsed} data-testid="title-bar">
         <div className="profile">
           <PlayerAvatar playerId={playerId}/>
           <h4>Messages</h4>
@@ -174,11 +176,17 @@ export default function MessageBar(props: {
       </div>
       {
         eventsAndMessage.length === 0
-          ? <div className="no-messages">No messages.</div>
+          ? <div className="no-messages" data-testid="no-messages">No messages.</div>
           : (
             <div ref={messagesDivRef} className="messages">
               {
-                eventsAndMessage.map((em, i) => <EventOrMessage key={i} myPlayerId={playerId} names={names} eventOrMessage={em}/>)
+                eventsAndMessage.map((em, i) => <EventOrMessage
+                  key={i}
+                  myPlayerId={playerId}
+                  names={names}
+                  eventOrMessage={em}
+                  dataTestId={`message-${i}`}
+                />)
               }
             </div>
           )
@@ -188,7 +196,9 @@ export default function MessageBar(props: {
              placeholder="Type something..."
              value={inputValue}
              onChange={handleInputChange}
-             onKeyUp={handleInputKeyUp}/>
+             onKeyUp={handleInputKeyUp}
+             data-testid="message-input"
+      />
     </div>
   );
 }
