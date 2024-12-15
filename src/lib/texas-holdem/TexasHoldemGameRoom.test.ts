@@ -1,5 +1,11 @@
 import { GameRoomEvents, GameEvent } from "../GameRoom";
-import {GameRoomLike, MentalPokerGameRoomLike, TexasHoldemGameRoom, TexasHoldemTableEvent} from "./TexasHoldemGameRoom";
+import {
+  GameRoomLike,
+  MentalPokerGameRoomLike,
+  TexasHoldemGameRoom,
+  TexasHoldemGameRoomEvents,
+  TexasHoldemTableEvent
+} from "./TexasHoldemGameRoom";
 import Deferred from "../Deferred";
 import EventEmitter from "eventemitter3";
 import { MentalPokerGameRoomEvents, MentalPokerRoundSettings } from "../MentalPokerGameRoom";
@@ -12,7 +18,7 @@ class MockGameRoom implements GameRoomLike<TexasHoldemTableEvent> {
 
   listener = new EventEmitter<GameRoomEvents<GameEvent<TexasHoldemTableEvent>>>();
 
-  private paired?: MockGameRoom;
+  private paired: Set<MockGameRoom> = new Set();
 
   constructor() {
     this.peerIdAsync = this.peerIdDeferred.promise;
@@ -22,9 +28,10 @@ class MockGameRoom implements GameRoomLike<TexasHoldemTableEvent> {
     const myPeerId = await this.peerIdAsync;
     this.eventsEmitted.push(e);
     this.listener.emit('event', e, myPeerId);
-    if (this.paired) {
-      if (e.type === 'public' || e.recipient === await this.paired.peerIdAsync) {
-        this.paired.listener.emit('event', e, myPeerId);
+
+    for (let eachPaired of Array.from(this.paired)) {
+      if (e.type === 'public' || e.recipient === await eachPaired.peerIdAsync) {
+        eachPaired.listener.emit('event', e, myPeerId);
       }
     }
   }
@@ -34,8 +41,11 @@ class MockGameRoom implements GameRoomLike<TexasHoldemTableEvent> {
   }
 
   pair(another: MockGameRoom) {
-    this.paired = another;
-    another.paired = this;
+    if (this === another) {
+      return;
+    }
+    this.paired.add(another);
+    another.paired.add(this);
   }
 }
 
@@ -144,6 +154,161 @@ describe('TexasHoldemGameRoom', () => {
       [1, 6, 'A'],
       [1, 7, 'B'],
       [1, 8, 'B'],
+    ]);
+  });
+});
+
+describe('TexasHoldemGameRoom with multiple players', () => {
+  const testHostAndGuest = async (
+    name: string,
+    fn: (
+      args: {
+        hostGameRoom: MockGameRoom;
+        hostMentalPokerGameRoom: MockMentalPokerGameRoom;
+        hostTexasHoldemGameRoom: TexasHoldemGameRoom;
+        guestGameRoom: MockGameRoom;
+        guestMentalPokerGameRoom: MockMentalPokerGameRoom;
+        guestTexasHoldemGameRoom: TexasHoldemGameRoom;
+        guestGameRooms: MockGameRoom[];
+        guestMentalPokerGameRooms: MockMentalPokerGameRoom[];
+        guestTexasHoldemGameRooms: TexasHoldemGameRoom[];
+      }
+    ) => Promise<unknown>,
+    options?: {
+      guests?: number;
+      hostId?: string;
+      guestIds?: string[];
+    }
+  ) => {
+    test(name, async () => {
+      const members: string[] = [];
+      const hostGameRoom = new MockGameRoom();
+      const hostId = options?.hostId ?? 'host';
+      members.push(hostId);
+      hostGameRoom.peerIdDeferred.resolve(hostId);
+      const hostMentalPokerGameRoom = new MockMentalPokerGameRoom();
+      const hostTexasHoldemGameRoom = new TexasHoldemGameRoom(hostGameRoom, hostMentalPokerGameRoom);
+
+      const guestGameRooms: MockGameRoom[] = [];
+      const guestMentalPokerGameRooms: MockMentalPokerGameRoom[] = [];
+      const guestTexasHoldemGameRooms: TexasHoldemGameRoom[] = [];
+
+      for (let i = 0; i < (options?.guests ?? 1); i++) {
+        const guestGameRoom = new MockGameRoom();
+        const guestId = options?.guestIds?.[i] ?? `guest${i}`;
+        members.push(guestId);
+        guestGameRoom.peerIdDeferred.resolve(guestId);
+        guestGameRoom.pair(hostGameRoom);
+        for (let existGameRoom of guestGameRooms) {
+          guestGameRoom.pair(existGameRoom);
+        }
+        guestGameRooms.push(guestGameRoom);
+
+        const guestMentalPokerGameRoom = new MockMentalPokerGameRoom();
+        guestMentalPokerGameRooms.push(guestMentalPokerGameRoom);
+
+        guestTexasHoldemGameRooms.push(new TexasHoldemGameRoom(guestGameRoom, guestMentalPokerGameRoom));
+      }
+
+      for (let mentalPokerGameRoom of [hostMentalPokerGameRoom, ...guestMentalPokerGameRooms]) {
+        mentalPokerGameRoom.members = [...members];
+      }
+
+      await fn({
+        hostGameRoom,
+        hostMentalPokerGameRoom,
+        hostTexasHoldemGameRoom,
+        guestGameRoom: guestGameRooms[0],
+        guestMentalPokerGameRoom: guestMentalPokerGameRooms[0],
+        guestTexasHoldemGameRoom: guestTexasHoldemGameRooms[0],
+        guestGameRooms,
+        guestMentalPokerGameRooms,
+        guestTexasHoldemGameRooms,
+      });
+
+      guestTexasHoldemGameRooms.forEach(room => room.close());
+      hostTexasHoldemGameRoom.close();
+    });
+  };
+
+  const listenOnce = <E extends (keyof TexasHoldemGameRoomEvents)>(texasHoldem: TexasHoldemGameRoom, eventName: E): Promise<EventEmitter.ArgumentMap<TexasHoldemGameRoomEvents>[Extract<E, keyof TexasHoldemGameRoomEvents>]> => {
+    return new Promise(resolve => {
+      texasHoldem.listener.once(eventName, (...args) => {
+        resolve(args);
+      });
+    });
+  };
+
+  const subscribeEvents = <E extends (keyof TexasHoldemGameRoomEvents)>(texasHoldem: TexasHoldemGameRoom, eventName: E) => {
+    let eventsSinceLastPop: EventEmitter.ArgumentMap<TexasHoldemGameRoomEvents>[Extract<E, keyof TexasHoldemGameRoomEvents>][] = [];
+    texasHoldem.listener.on(eventName, (...args) => {
+      eventsSinceLastPop.push([...args]);
+    });
+
+    const pop = () => {
+      const popped = [...eventsSinceLastPop];
+      eventsSinceLastPop = [];
+      return popped;
+    };
+
+    return {
+      pop,
+    };
+  };
+
+  testHostAndGuest('happy path', async (
+    {
+      hostMentalPokerGameRoom,
+      hostTexasHoldemGameRoom,
+      guestMentalPokerGameRoom,
+      guestTexasHoldemGameRoom,
+    }
+  ) => {
+    const playerEventReceivedPromise = listenOnce(hostTexasHoldemGameRoom, 'players');
+    const betEventsSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'bet');
+    const whoseTurnEventsSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'whoseTurn');
+
+    await hostTexasHoldemGameRoom.startNewRound({
+      initialFundAmount: 100,
+    });
+
+    const [round, players] = await playerEventReceivedPromise;
+    expect(round).toEqual(1);
+    expect(players).toEqual(['host', 'guest0']);
+
+    // expect the hole cards are dealt to the correct player
+    for (let mentalPokerGameRoom of [hostMentalPokerGameRoom, guestMentalPokerGameRoom]) {
+      expect(mentalPokerGameRoom.dealtCards[0]).toEqual([1, 5, 'host']);
+      expect(mentalPokerGameRoom.dealtCards[1]).toEqual([1, 6, 'host']);
+      expect(mentalPokerGameRoom.dealtCards[2]).toEqual([1, 7, 'guest0']);
+      expect(mentalPokerGameRoom.dealtCards[3]).toEqual([1, 8, 'guest0']);
+    }
+
+    const holeEventReceivedByHostPromise = listenOnce(hostTexasHoldemGameRoom, 'hole');
+    const holeEventReceivedByGuestPromise = listenOnce(guestTexasHoldemGameRoom, 'hole');
+
+    // emit the card events accordingly
+    hostMentalPokerGameRoom.listener.emit('card', 1, 5, { suit: 'Club', rank: '2' });
+    hostMentalPokerGameRoom.listener.emit('card', 1, 6, { suit: 'Club', rank: '3' });
+    guestMentalPokerGameRoom.listener.emit('card', 1, 7, { suit: 'Diamond', rank: '2'});
+    guestMentalPokerGameRoom.listener.emit('card', 1, 8, { suit: 'Diamond', rank: '3'});
+
+    // "hole" events should have been received
+    const holeEventReceivedByHost = await holeEventReceivedByHostPromise;
+    expect(holeEventReceivedByHost).toEqual([1, 'host', [{ suit: 'Club', rank: '2' }, { suit: 'Club', rank: '3' }]]);
+    const holeEventReceivedByGuest = await holeEventReceivedByGuestPromise;
+    expect(holeEventReceivedByGuest).toEqual([1, 'guest0', [{ suit: 'Diamond', rank: '2' }, { suit: 'Diamond', rank: '3' }]]);
+
+    // 1 for SB, 2 for BB should have been received
+    const betEvents = betEventsSubscriber.pop();
+    expect(betEvents).toEqual([
+      [1, 1, 'host', false],
+      [1, 2, 'guest0', false],
+    ]);
+
+    const whoseTurnEvents = whoseTurnEventsSubscriber.pop();
+    expect(whoseTurnEvents).toEqual([
+      [1, 'host', { callAmount: 1 }],
     ]);
   });
 });
