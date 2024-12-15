@@ -11,7 +11,7 @@ test('rendering with player name', () => {
 });
 
 test('rendering with children', () => {
-  render(<PlayerAvatar playerId="player" playerName="name">
+  render(<PlayerAvatar playerId="player">
     <span>foobar</span>
   </PlayerAvatar>);
 });

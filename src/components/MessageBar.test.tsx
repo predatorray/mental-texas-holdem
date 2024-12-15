@@ -1,8 +1,9 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
 import MessageBar from "./MessageBar";
 import {EventLogs} from "../lib/texas-holdem/useEventLogs";
 import {Messages} from "../lib/useChatRoom";
+import Deferred from "../lib/Deferred";
 
 test('rendering does not crash', () => {
   render(<MessageBar
@@ -103,4 +104,23 @@ test('rendering with messages and event logs', () => {
     messages={messages}
     names={new Map<string, string>()}
   />);
+});
+
+test('sending message', async () => {
+  const messageDeferred = new Deferred<string>();
+  const messageCallback = (message: string) => {messageDeferred.resolve(message)};
+  render(<MessageBar
+    playerId="player1"
+    eventLogs={[]}
+    messages={[]}
+    onMessage={messageCallback}
+    names={new Map<string, string>()}
+  />);
+
+  const messageInput = screen.getByTestId('message-input');
+  fireEvent.change(messageInput, { target: { value: 'ABC' } });
+  fireEvent.keyUp(messageInput, { key: 'Enter' });
+
+  const messageReceived = await messageDeferred.promise;
+  expect(messageReceived).toBe('ABC');
 });
