@@ -2,6 +2,7 @@
 
 ![License](https://img.shields.io/github/license/predatorray/mental-texas-holdem)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/predatorray/mental-texas-holdem/ci.yml?branch=master)
+[![codecov](https://codecov.io/github/predatorray/mental-texas-holdem/graph/badge.svg?token=WM14oj4huI)](https://codecov.io/github/predatorray/mental-texas-holdem)
 
 ![screenshot](https://github.com/predatorray/mental-texas-holdem/blob/assets/screenshot.png?raw=true)
 
