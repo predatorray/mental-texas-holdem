@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react";
 import {Chat} from "./setup";
+import {ChatRoomEvents} from "./ChatRoom";
+import {EventListener} from "./types";
 
 export interface Message {
   type: 'message';
@@ -10,7 +12,15 @@ export interface Message {
 
 export type Messages = Message[];
 
-export default function useChatRoom() {
+export interface ChatRoomLike {
+  listener: EventListener<ChatRoomEvents>;
+  setMyName(name: string): Promise<any>;
+  sendTextMessage(text: string): Promise<any>;
+}
+
+export default function useChatRoom(
+  chatRoom: ChatRoomLike = Chat,
+) {
   const [messages, setMessages] = useState<Messages>([]);
 
   useEffect(() => {
@@ -25,11 +35,11 @@ export default function useChatRoom() {
         },
       ]);
     };
-    Chat.listener.on('text', textListener);
+    chatRoom.listener.on('text', textListener);
     return () => {
-      Chat.listener.off('text', textListener);
+      chatRoom.listener.off('text', textListener);
     }
-  }, []);
+  }, [chatRoom.listener]);
 
   const [names, setNames] = useState(new Map<string, string>());
 
@@ -41,18 +51,18 @@ export default function useChatRoom() {
         return next;
       });
     };
-    Chat.listener.on('name', nameListener);
+    chatRoom.listener.on('name', nameListener);
     return () => {
-      Chat.listener.off('name', nameListener);
+      chatRoom.listener.off('name', nameListener);
     }
-  }, []);
+  }, [chatRoom.listener]);
 
   const setMyName = (name: string) => {
-    Chat.setMyName(name);
+    chatRoom.setMyName(name);
   };
 
   const sendMessage = (text: string) => {
-    Chat.sendTextMessage(text);
+    chatRoom.sendTextMessage(text);
   };
 
   return {
