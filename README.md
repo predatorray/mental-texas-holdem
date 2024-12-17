@@ -41,7 +41,21 @@ here is a brief summary:
 4. Finally, the deck is shuffled and double-encrypted by Alice and Bob.
    Unless both Alice and bob agree to share their own private keys of a card, no one knows, even Alice or Bob.
 
-An implementation of the algorithm can be found in this separate project:
+The Commutative encryption algorithm above can be described as the following,
+
+$$
+\begin{align*}c &= &f_{k_2}(f_{k_1}(m)) &\equiv& f_{k_1}(f_{k_2}(m))\\\\m &= &f_{k_2}^{-1}(f_{k_1}^{-1}(c)) &\equiv& f_{k_1}^{-1}(f_{k_2}^{-1}(c))\end{align*}
+$$
+
+where,
+- $m$ is plaintext,
+- $c$ is double-encrypted ciphertext,
+- $k_1$ is Alice's key,
+- $k_2$ is Bob's key,
+- $f_{k_n}$ is the encryption using key $n$,
+- $f_{k_n}^{-1}$ is the decryption using key $n$.
+
+The implementation of the algorithm can be found in this separate project:
 [predatorray/mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
 and it is also available on [NPM](https://www.npmjs.com/package/mental-poker-toolkit).
 
