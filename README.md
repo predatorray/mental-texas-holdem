@@ -14,13 +14,15 @@ A live demo is available [here](https://www.predatorray.me/mental-texas-holdem/)
 
 ### Serverless
 
-The game leverages the WebRTC framework called [PeerJS](https://peerjs.com), 
+The game leverages a WebRTC framework called [PeerJS](https://peerjs.com), 
 where no peer-to-peer data goes through the server once connections are established.
-Literally speaking, there is no "Game Server" running in the background,
+Techinically, there is no "Game Server" running in the background,
 but instead, every player is engaged in "server"ing the game,
 even including shuffling the deck and dealing cards.
 The host, who creates the game, merely acts as a hub that proxies the data sent by those
 who join the game later.
+
+![serverless](https://github.com/predatorray/mental-texas-holdem/blob/assets/serverless-diagram.png?raw=true)
 
 ### Fairness
 
