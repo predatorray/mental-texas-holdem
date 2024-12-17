@@ -44,7 +44,7 @@ here is a brief summary:
 The Commutative encryption algorithm above can be described as the following,
 
 $$
-\begin{align*}c &= &f(f(m, k_1), k_2) &\equiv& f(f(m, k_2), k_1)\\\\m &= &f^{-1}(f^{-1}(c, k_1), k_2) &\equiv& f^{-1}(f^{-1}(c, k2), k1)\end{align*}
+\begin{align*}c &= &f_{k_2}(f_{k_1}(m)) &\equiv& f_{k_1}(f_{k_2}(m))\\\\m &= &f_{k_2}^{-1}(f_{k_1}^{-1}(c)) &\equiv& f_{k_1}^{-1}(f_{k_2}^{-1}(c))\end{align*}
 $$
 
 where,
@@ -52,8 +52,8 @@ where,
 - $c$ is double-encrypted ciphertext,
 - $k_1$ is Alice's key,
 - $k_2$ is Bob's key,
-- $f$ is the encryption,
-- $f^{-1}$ is the decryption.
+- $f_{k_n}$ is the encryption using key $n$,
+- $f_{k_n}^{-1}$ is the decryption using key $n$.
 
 The implementation of the algorithm can be found in this separate project:
 [predatorray/mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
