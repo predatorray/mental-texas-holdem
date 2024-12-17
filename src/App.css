@@ -507,7 +507,7 @@ select {
   justify-content: center;
 }
 
-.hand-cards {
+.my-seat {
   bottom: 20px;
 
   @media screen and (min-height: 800px) {
@@ -524,7 +524,7 @@ select {
   perspective: 220px;
 }
 
-.hand-cards.winner {
+.my-seat.winner {
   border: 1px #fff solid;
   border-radius: 10px;
   padding: 8px;
@@ -532,17 +532,17 @@ select {
   background-color: #333;
 }
 
-.hand-cards .avatar {
+.my-seat .avatar {
   margin: 10px 80px;
   max-height: 80px;
 }
 
-.hand-cards .avatar img {
+.my-seat .avatar img {
   width: 56px;
   height: 56px;
 }
 
-.hand-cards .bankroll {
+.my-seat .bankroll {
   max-width: 130px; /* width(.card) * 2 + margin */
 
   @media screen and (min-height: 800px) {
@@ -571,7 +571,7 @@ select {
   }
 }
 
-.hand-cards .card {
+.my-seat .card {
   margin-left: 4px;
   margin-right: 4px;
   transform: rotateX(-5deg);
