@@ -6,19 +6,19 @@
 
 ![screenshot](https://github.com/predatorray/mental-texas-holdem/blob/assets/screenshot.png?raw=true)
 
-A **Peer-to-Peer**, **serverless** Texas Hold'em game that runs purely on browsers using WebRTC.
+Mental Texas Hold'em is a **Peer-to-Peer**, **serverless** Texas Hold'em game that runs purely in browsers using WebRTC.
 
-A live demo is available [here](https://www.predatorray.me/mental-texas-holdem/).
+Play a live demo [here](https://www.predatorray.me/mental-texas-holdem/).
 
 ## Highlights
 
 ### Serverless
 
-The game leverages a WebRTC framework called [PeerJS](https://peerjs.com), 
+The game leverages a WebRTC framework called [PeerJS](https://peerjs.com),
 where no peer-to-peer data goes through the server once connections are established.
-Techinically, there is no "Game Server" running in the background,
-but instead, every player is engaged in "server"ing the game,
-even including shuffling the deck and dealing cards.
+Technically, there is no "Game Server" running in the background.
+Instead, every player is involved in "serving" the game,
+including shuffling the deck and dealing cards.
 The host, who creates the game, merely acts as a hub that proxies the data sent by those
 who join the game later.
 
@@ -26,64 +26,59 @@ who join the game later.
 
 ### Fairness
 
-So, you may ask, *is it still a fair game*? Well, here is the most interesting part of this project.
+You may ask, *is it still a fair game*? Well, here is the most interesting part of this project.
 
-Fairness is guaranteed by using an algorithm that solves a cryptographic problem called **Mental Poker**,
-where a fair poker game can still be played without a trusted third party.
+The game ensures fairness using a cryptographic protocol called **Mental Poker**,
+which allows two or more players to play a fair game of poker without a trusted third party.
 
-Though, a more detailed explanation of the algorithm can be found on
-[its Wikipedia page](https://en.wikipedia.org/wiki/Mental_poker),
-here is a brief summary:
+For a full explanation, you can check out the [Mental Poker Wikipedia](https://en.wikipedia.org/wiki/Mental_poker).
+Here’s a simplified overview:
 
-1. There are two players Alice and Bob.
-2. Alice and Bob shuffle and encrypt the deck one after another using commutative encryption algorithm.
-3. And then, they decrypt the deck using their private key and encrypt again each card individually using different keys.
+1. There are two players, Alice and Bob.
+2. Alice and Bob shuffle and encrypt the deck one after another using a commutative encryption algorithm.
+3. Then, they decrypt the deck using their private keys and encrypt each card individually using different keys.
 4. Finally, the deck is shuffled and double-encrypted by Alice and Bob.
-   Unless both Alice and bob agree to share their own private keys of a card, no one knows, even Alice or Bob.
+   No player can view the card values unless both players agree to share their private keys for a card.
 
-The Commutative encryption algorithm above can be described as the following,
+The commutative encryption algorithm can be described as follows:
 
 $$
 \begin{align*}c &= &f_{k_2}(f_{k_1}(m)) &\equiv& f_{k_1}(f_{k_2}(m))\\\\m &= &f_{k_2}^{-1}(f_{k_1}^{-1}(c)) &\equiv& f_{k_1}^{-1}(f_{k_2}^{-1}(c))\end{align*}
 $$
 
 where,
-- $m$ is plaintext,
-- $c$ is double-encrypted ciphertext,
-- $k_1$ is Alice's key,
-- $k_2$ is Bob's key,
-- $f_{k_n}$ is the encryption using key $n$,
-- $f_{k_n}^{-1}$ is the decryption using key $n$.
+- $m$ is the plaintext (the Card),
+- $c$ is the double-encrypted ciphertext,
+- $k_1$ and $k_2$ are the keys of the players Alice and Bob,
+- $f_{k_n}$ and $f_{k_n}^{-1}$ are the encryption and decryption functions using key $k_n$,
 
-The implementation of the algorithm can be found in this separate project:
-[predatorray/mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
-and it is also available on [NPM](https://www.npmjs.com/package/mental-poker-toolkit).
+This cryptographic protocol guarantees that no one can know the card values until they mutually decrypt the deck.
+
+This protocol is implemented in the separate project: [mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
+also available on [NPM](https://www.npmjs.com/package/mental-poker-toolkit).
 
 ## Limitations
 
 ### Fault Tolerance
 
-If a peer disconnects or leaves the game, the game won't be able to continue.
-There is no persistence or recovery mechanism implemented yet.
+Currently, there is no fault tolerance implemented. If a peer disconnects or leaves the game,
+the game will be interrupted, and no recovery mechanism is in place.
 
 ### Performance
 
-SRA, a RSA variant, is used as the commutative encryption algorithm described above.
-Its encryption and decryption consume a lot of CPU resource,
-especially when a large key length (e.g. > 128 bits) is used.
-Running such computation on a browser using Javascript is relatively slow comparing to
-other native applications.
+The game uses SRA, a variant of RSA, as the commutative encryption algorithm.
+This encryption and decryption process can be CPU-intensive, particularly with large key sizes
+(e.g., greater than 128 bits).
 
-Besides that, since the deck is double-encrypted using SRA,
-the size of ciphertext could grow exponentially with the key length.
-Thus, network could be a bottleneck if key length is too large, which finally causes
-huge latency when shuffling the deck.
+Since these cryptographic operations are run in the browser using JavaScript,
+performance may be slower compared to native applications.
+Additionally, the ciphertext size increases exponentially with key size,
+potentially causing network latency during deck shuffling if the key length is too large.
 
 ## Support & Bug Report
 
-Please feel free to [open an issue](https://github.com/predatorray/mental-texas-holdem/issues/new)
-if you find any bug or have any suggestion.
+If you find any bugs or have suggestions, please feel free to [open an issue](https://github.com/predatorray/mental-texas-holdem/issues/new).
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the [MIT License](LICENSE).
