@@ -17,7 +17,7 @@ export default function ScoreBoardAndToggle(props: {
       <span className="score-board-toggle" onClick={() => setVisible(true)} data-testid={props.toggleDataTestId ?? 'score-board-toggle'}>
         <img src={`${process.env.PUBLIC_URL}/podium.svg`} alt="score-board"/>
       </span>
-      <Modal visible={visible} data-testid={props.scoreBoardDataTestId}>
+      <Modal visible={visible} onClick={() => setVisible(false)} data-testid={props.scoreBoardDataTestId}>
         <span className="close" onClick={() => setVisible(false)} data-testid="modal-close">&times;</span>
         <div className="score-board">
           <table className="score-board-table">
