@@ -27,30 +27,44 @@ describe('ScoreBoardAndToggle', () => {
       names={names}/>);
   });
 
-  test('opening and hiding the score board', async () => {
-    act(() => {
-      render(<ScoreBoardAndToggle
-        scoreBoard={scoreBoard}
-        totalDebt={totalDebt}
-        bankrolls={bankrolls}
-        names={names}
-        scoreBoardDataTestId="score-board"
+  test('opening and hiding the score board by clicking the close button', async () => {
+    render(<ScoreBoardAndToggle
+      scoreBoard={scoreBoard}
+      totalDebt={totalDebt}
+      bankrolls={bankrolls}
+      names={names}
+      scoreBoardDataTestId="score-board"
       />);
-    });
 
     const scoreBoardComponent = await screen.findByTestId('score-board');
     expect(scoreBoardComponent.getAttribute('class')).not.toContain('visible');
 
     const toggle = await screen.findByTestId('score-board-toggle');
-    act(() => {
-      fireEvent.click(toggle);
-    });
+    fireEvent.click(toggle);
 
     expect(scoreBoardComponent.getAttribute('class')).toContain('visible');
 
     act(() => {
       screen.getByTestId('modal-close').click();
     });
+    expect(scoreBoardComponent.getAttribute('class')).not.toContain('visible');
+  });
+
+  test('opening and hiding the score board by clicking the background', async () => {
+    render(<ScoreBoardAndToggle
+      scoreBoard={scoreBoard}
+      totalDebt={totalDebt}
+      bankrolls={bankrolls}
+      names={names}
+      scoreBoardDataTestId="score-board"
+    />);
+
+    fireEvent.click(screen.getByTestId('score-board-toggle'));
+
+    const scoreBoardComponent = await screen.findByTestId('score-board');
+    expect(scoreBoardComponent.getAttribute('class')).toContain('visible');
+
+    fireEvent.click(scoreBoardComponent);
     expect(scoreBoardComponent.getAttribute('class')).not.toContain('visible');
   });
 });
