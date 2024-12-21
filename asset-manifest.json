@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/mental-texas-holdem/static/css/main.fd708179.css",
-    "main.js": "/mental-texas-holdem/static/js/main.9dcd9b5b.js",
+    "main.css": "/mental-texas-holdem/static/css/main.8f905135.css",
+    "main.js": "/mental-texas-holdem/static/js/main.9a82adc4.js",
     "static/js/453.9d8cc992.chunk.js": "/mental-texas-holdem/static/js/453.9d8cc992.chunk.js",
     "index.html": "/mental-texas-holdem/index.html",
-    "main.fd708179.css.map": "/mental-texas-holdem/static/css/main.fd708179.css.map",
-    "main.9dcd9b5b.js.map": "/mental-texas-holdem/static/js/main.9dcd9b5b.js.map",
+    "main.8f905135.css.map": "/mental-texas-holdem/static/css/main.8f905135.css.map",
+    "main.9a82adc4.js.map": "/mental-texas-holdem/static/js/main.9a82adc4.js.map",
     "453.9d8cc992.chunk.js.map": "/mental-texas-holdem/static/js/453.9d8cc992.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.fd708179.css",
-    "static/js/main.9dcd9b5b.js"
+    "static/css/main.8f905135.css",
+    "static/js/main.9a82adc4.js"
   ]
 }
