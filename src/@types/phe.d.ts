@@ -28,4 +28,6 @@ declare module 'phe' {
   export function evaluateCards(cards: Array<String>): number;
 
   export function rankCards(cards: Array<String>): HandValue;
+
+  export function handRank(strength: number): HandValue;
 }

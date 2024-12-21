@@ -49,13 +49,6 @@ export default function TexasHoldemGameTable() {
     return new Set(winners);
   }, [currentRoundFinished, lastWinningResult]);
 
-  const iAmWinner = useMemo(() => {
-    if (!mainPotWinners || !playerId) {
-      return false;
-    }
-    return mainPotWinners.has(playerId);
-  }, [mainPotWinners, playerId]);
-
   const {
     names,
     setMyName,
@@ -70,7 +63,16 @@ export default function TexasHoldemGameTable() {
       <GithubProjectLink/>
       {
         (currentRoundFinished && playerId && round) &&
-          <ScoreBoardAndToggle scoreBoard={scoreBoard} totalDebt={totalDebt} bankrolls={bankrolls} names={names}/>
+          <ScoreBoardAndToggle
+              scoreBoard={scoreBoard}
+              totalDebt={totalDebt}
+              bankrolls={bankrolls}
+              names={names}
+              lastWinningResult={lastWinningResult}
+              mainPotWinners={mainPotWinners}
+              holesPerPlayer={holesPerPlayer}
+              board={board}
+          />
       }
       <Opponents
         members={members}
@@ -104,7 +106,7 @@ export default function TexasHoldemGameTable() {
         bankrolls={bankrolls}
         names={names}
         setMyName={setMyName}
-        iAmWinner={iAmWinner}
+        mainPotWinners={mainPotWinners}
         currentRoundFinished={currentRoundFinished}
         actionsDone={actionsDone}
         whoseTurnAndCallAmount={whoseTurnAndCallAmount}

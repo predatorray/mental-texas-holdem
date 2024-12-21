@@ -6,10 +6,10 @@ import {
 import EventEmitter from "eventemitter3";
 import LifecycleManager from "../LifecycleManager";
 import {EventListener} from "../types";
-import {Board, CARDS, Flop, Hole, River, Turn} from "../rules";
+import {Board, CARDS, evaluateStandardCards, Flop, Hole, River, Turn} from "../rules";
 import Deferred from "../Deferred";
 import {StandardCard} from "mental-poker-toolkit";
-import {evaluateCards, rankCards} from "phe";
+import {handRank} from "phe";
 
 export interface LastOneWins {
   how: 'LastOneWins',
@@ -302,9 +302,8 @@ export class TexasHoldemGameRoom {
             cards[holeOffsets[1]],
           ];
           const holeAndBoard = [...hole, ...board];
-          const sevenCardsEncoded = holeAndBoard.map(card => card.rank + card.suit.charAt(0).toLowerCase());
-          const handValue = rankCards(sevenCardsEncoded);
-          const strength = evaluateCards(sevenCardsEncoded);
+          const strength = evaluateStandardCards(holeAndBoard);
+          const handValue = handRank(strength);
           const player = players[playerOffset];
           strengthOfPlayers.push({
             player,

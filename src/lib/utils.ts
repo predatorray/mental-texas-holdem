@@ -59,3 +59,24 @@ export function useTimeout(functionRef: () => void, delay: number) {
     };
   }, [functionRef, delay]);
 }
+
+export function combination<T>(array: Array<T>, k: number): Array<Array<T>> {
+  if (k <= 0) {
+    return [];
+  }
+  if (k === 1) {
+    return array.map(it => [it]);
+  }
+  if (k === array.length) {
+    return [array];
+  }
+  if (k > array.length) {
+    return [];
+  }
+  const result: T[][] = [];
+  for (let i = 0; i < array.length - k + 1; i++) {
+    const item = array[i];
+    combination(array.slice(i + 1), k - 1).forEach(subComb => result.push([item, ...subComb]));
+  }
+  return result;
+}
