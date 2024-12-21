@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useMemo} from "react";
 import MyActionButtons from "./MyActionButtons";
 import MyBetAmount from "./MyBetAmount";
 import MyPlayerAvatar from "./MyPlayerAvatar";
@@ -15,7 +15,7 @@ export default function MySeat(props: {
   bankrolls: Map<string, number>;
   names: Map<string, string>;
   setMyName: (name: string) => void;
-  iAmWinner: boolean;
+  mainPotWinners: Set<string> | null;
   currentRoundFinished: boolean;
   actionsDone: Map<string, string | number> | null;
   whoseTurnAndCallAmount: {
@@ -30,7 +30,7 @@ export default function MySeat(props: {
   const {
     playerId,
     players,
-    iAmWinner,
+    mainPotWinners,
     currentRoundFinished,
     actionsDone,
     board,
@@ -42,6 +42,14 @@ export default function MySeat(props: {
     whoseTurnAndCallAmount,
     actions,
   } = props;
+
+  const iAmWinner = useMemo(() => {
+    if (!mainPotWinners || !playerId) {
+      return false;
+    }
+    return mainPotWinners.has(playerId);
+  }, [mainPotWinners, playerId]);
+
   return (
     <div className={iAmWinner ? 'my-seat winner' : 'my-seat'}>
       <MyBetAmount playerId={playerId} actionsDone={actionsDone}/>
