@@ -164,7 +164,7 @@ export default class GameRoom<T> {
 
     this.hostConnectionPromise = new Promise<DataConnection | DataConnectionLike | null>((resolve, reject) => {
       peer.on('open', this.lcm.register(peerId => {
-        console.info(`Connected to the PeerJS server. (peerId = ${peerId}).`);
+        console.debug(`Connected to the PeerJS server. (peerId = ${peerId}).`);
         this.peerId = peerId;
         this.peerIdDeferred.resolve(peerId);
         this._status = 'PeerServerConnected';
@@ -176,10 +176,10 @@ export default class GameRoom<T> {
           return;
         }
 
-        console.info(`Connecting to the remote peer (${options.hostId})`);
+        console.debug(`Connecting to the remote peer (${options.hostId})`);
         const hostConn = peer.connect(options.hostId, PEER_CONNECT_OPTIONS);
         hostConn.on('open', () => {
-          console.info(`Connected to the remote peer (${options.hostId}) successfully.`);
+          console.debug(`Connected to the remote peer (${options.hostId}) successfully.`);
           this._status = 'HostConnected';
           this.emitter.emit('status', this._status);
           resolve(hostConn);
@@ -191,7 +191,7 @@ export default class GameRoom<T> {
         });
         hostConn.on('close', () => {
           this._status = 'Closed';
-          console.info(`The remote connection is closed (${options.hostId}).`);
+          console.debug(`The remote connection is closed (${options.hostId}).`);
         });
         hostConn.on('data', (data) => {
           this.handleData(data, hostConn.peer);
@@ -204,7 +204,7 @@ export default class GameRoom<T> {
       peer.on('connection', this.lcm.register((conn) => {
         const openedConnPromise = new Promise<DataConnectionLike>((resolve, reject) => {
           conn.on('open', () => {
-            console.info(`Established connection with the peer (peerId = ${conn.peer}).`);
+            console.debug(`Established connection with the peer (peerId = ${conn.peer}).`);
             resolve(conn);
           });
           conn.on('data', (data) => {
@@ -220,7 +220,7 @@ export default class GameRoom<T> {
         }
         this.guestConnectionPromises.set(conn.peer, openedConnPromise);
         conn.on('close', () => {
-          console.info(`The client connection is closed. (peerId = ${conn.peer}).`);
+          console.debug(`The client connection is closed. (peerId = ${conn.peer}).`);
           this.guestConnectionPromises.delete(conn.peer);
 
           const membersChangedEvent: MembersChangedEvent = {
@@ -315,7 +315,7 @@ export default class GameRoom<T> {
       console.debug(data);
       return;
     }
-    console.info(`Sending a message to the client (peerId = ${guestPeerId}).`);
+    console.debug(`Sending a message to the client (peerId = ${guestPeerId}).`);
     console.debug(data);
     (await guestConn).send(data);
   }
@@ -356,7 +356,7 @@ export default class GameRoom<T> {
       console.error('missing event or type');
       return;
     }
-    console.info(`Received GameEvent ${e.type} from ${whom}.`);
+    console.debug(`Received GameEvent ${e.type} from ${whom}.`);
     console.debug(e);
     if (this.hostId) {
       // guest mode
@@ -473,7 +473,7 @@ export default class GameRoom<T> {
   }
 
   private async fireEventFromGuest(e: GameEvent<T>) {
-    console.info(`Sending GameEvent ${e.type}.`);
+    console.debug(`Sending GameEvent ${e.type}.`);
     console.debug(e);
     if (e.type === 'public') {
       await this.sendMessageToHost(e);
