@@ -221,7 +221,7 @@ export default class MentalPokerGameRoom {
     }
 
     const showCardIfAliceOrBob = async (player: Player, aliceOrBob: 'alice' | 'bob') => {
-      console.info(`[${aliceOrBob}] showing the card [ ${cardOffset} ] to all the players.`);
+      console.debug(`[${aliceOrBob}] showing the card [ ${cardOffset} ] to all the players.`);
       const dk = player.getIndividualKey(cardOffset).decryptionKey;
       await this.firePublicEvent({
         type: 'card/decrypt',
@@ -253,7 +253,7 @@ export default class MentalPokerGameRoom {
     }
 
     const dealCardIfAliceOrBob = async (player: Player, aliceOrBob: 'alice' | 'bob') => {
-      console.info(`Dealing the card [ ${cardOffset} ] to ${recipient}.`);
+      console.debug(`Dealing the card [ ${cardOffset} ] to ${recipient}.`);
       const dk = player.getIndividualKey(cardOffset).decryptionKey;
       await this.firePrivateEvent({
         type: 'card/decrypt',
