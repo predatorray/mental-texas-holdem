@@ -144,16 +144,16 @@ export class TexasHoldemGameRoom {
     }, listener => mentalPokerGameRoom.listener.off('card', listener)));
 
     // texas holdem event listeners
-    this.gameRoom.listener.on('event', this.lcm.register(({ data }, who) => {
+    this.gameRoom.listener.on('event', this.lcm.register(({ data }, who, replay) => {
       switch (data.type) {
         case 'newRound':
-          this.handleNewRoundEvent(data);
+          this.handleNewRoundEvent(data, !!replay);
           break;
         case 'action/bet':
-          this.handleBetEvent(data, who);
+          this.handleBetEvent(data, who, !!replay);
           break;
         case 'action/fold':
-          this.handleFoldEvent(data, who);
+          this.handleFoldEvent(data, who, !!replay);
           break;
       }
     }, listener => this.gameRoom.listener.off('event', listener)));
@@ -177,6 +177,18 @@ export class TexasHoldemGameRoom {
       alice: sb,
       bob: bb,
       bits: settings?.bits,
+    });
+
+    // Wait for the deck protocol (encrypt/shuffle/finalize) to complete
+    // before firing newRound. This ensures all protocol events are committed
+    // to the Raft log, so a page refresh at any point after the game UI
+    // appears can be fully replayed.
+    await new Promise<void>(resolve => {
+      const handler = () => {
+        this.mentalPokerGameRoom.listener.off('shuffled', handler);
+        resolve();
+      };
+      this.mentalPokerGameRoom.listener.on('shuffled', handler);
     });
 
     await this.gameRoom.emitEvent({
@@ -381,7 +393,7 @@ export class TexasHoldemGameRoom {
     return amountsToBeUpdated;
   }
 
-  private async handleNewRoundEvent(e: NewRoundEvent) {
+  private async handleNewRoundEvent(e: NewRoundEvent, replay: boolean) {
     for (let player of e.players) {
       const fund = this.funds.get(player);
       if (!fund || fund < 2) { // 1 BB (2 SB) at least
@@ -394,29 +406,35 @@ export class TexasHoldemGameRoom {
     this.emitter.emit('players', e.round, e.players);
     roundData.initialFunds.resolve(new Map(this.funds));
 
-    // [0] to [4] are the board cards, hole cards start from [5]
-    for (let i = 0; i < e.players.length; ++i) {
-      const holeOffsets = [
-        i * 2 + 5,
-        i * 2 + 6,
-      ];
+    if (!replay) {
+      // [0] to [4] are the board cards, hole cards start from [5]
+      for (let i = 0; i < e.players.length; ++i) {
+        const holeOffsets = [
+          i * 2 + 5,
+          i * 2 + 6,
+        ];
 
-      await this.mentalPokerGameRoom.dealCard(e.round, holeOffsets[0], e.players[i]);
-      await this.mentalPokerGameRoom.dealCard(e.round, holeOffsets[1], e.players[i]);
+        await this.mentalPokerGameRoom.dealCard(e.round, holeOffsets[0], e.players[i]);
+        await this.mentalPokerGameRoom.dealCard(e.round, holeOffsets[1], e.players[i]);
+      }
     }
 
-    await this.handleBet(e.round, 1, e.players[0], true); // sb bets 1
-    await this.handleBet(e.round, 2, e.players[1], true); // bb bets 2
+    // Process blind bets synchronously (no await) to avoid race conditions
+    // during replay, where subsequent events can interleave with async microtasks
+    // and overwrite the correct whoseTurn state.
+    // handleBet with isSbBbFirstBet=true has no real async operations.
+    this.handleBet(e.round, 1, e.players[0], true); // sb bets 1
+    this.handleBet(e.round, 2, e.players[1], true); // bb bets 2
 
     const playerNextToBb = e.players[2 % e.players.length];
     this.emitter.emit('whoseTurn', e.round, playerNextToBb, {callAmount: e.players.length === 2 ? 1 : 2});
   }
 
-  private async handleBetEvent(e: BetEvent, who: string) {
-    await this.handleBet(e.round, e.amount, who);
+  private async handleBetEvent(e: BetEvent, who: string, replay: boolean) {
+    await this.handleBet(e.round, e.amount, who, false, replay);
   }
 
-  private async handleBet(roundNo: number, raisedAmount: number, who: string, isSbBbFirstBet?: boolean) {
+  private async handleBet(roundNo: number, raisedAmount: number, who: string, isSbBbFirstBet?: boolean, replay?: boolean) {
     if (raisedAmount < 0) { // FIXME must be N * BB
       console.warn(`Bet amount cannot be negative: ${raisedAmount}`);
       return;
@@ -466,11 +484,11 @@ export class TexasHoldemGameRoom {
     this.emitter.emit('pot', roundNo, potTotalAmount);
 
     if (!isSbBbFirstBet) {
-      await this.continueUnlessAllSet(roundNo, round, who);
+      await this.continueUnlessAllSet(roundNo, round, who, !!replay);
     }
   }
 
-  private async handleFoldEvent(e: FoldEvent, who: string) {
+  private async handleFoldEvent(e: FoldEvent, who: string, replay: boolean) {
     const round = this.getOrCreateDataForRound(e.round);
     if (round.result) {
       return;
@@ -493,7 +511,7 @@ export class TexasHoldemGameRoom {
       const newFundOfWinner = (this.funds.get(winner) ?? 0) + totalPotAmount;
       this.updateFundOfPlayer(winner, newFundOfWinner);
     } else {
-      await this.continueUnlessAllSet(e.round, round, who);
+      await this.continueUnlessAllSet(e.round, round, who, replay);
     }
   }
 
@@ -503,7 +521,7 @@ export class TexasHoldemGameRoom {
     this.emitter.emit('fund', amount, previousAmount, whose, borrowed);
   }
 
-  private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound, whosePreviousTurn: string) {
+  private async continueUnlessAllSet(round: number, roundData: TexasHoldemRound, whosePreviousTurn: string, replay?: boolean) {
     const players = await roundData.playersOrdered.promise;
 
     const prevOffset = players.findIndex(p => p === whosePreviousTurn);
@@ -519,26 +537,30 @@ export class TexasHoldemGameRoom {
       this.emitter.emit('allSet', round);
       this.emitter.emit('whoseTurn', round, null);
 
-      const cardOffsetsToShow: number[] = (() => {
-        switch (roundData.stage) {
-          case Stage.PRE_FLOP:
-            return everyOneElseIsAllinOrFolds ? [0, 1, 2, 3, 4] : [0, 1, 2];
-          case Stage.FLOP:
-            return everyOneElseIsAllinOrFolds ? [3, 4] : [3];
-          case Stage.TURN:
-            return [4];
-          case Stage.RIVER:
-            return [];
-        }
-      })();
+      if (!replay) {
+        const cardOffsetsToShow: number[] = (() => {
+          switch (roundData.stage) {
+            case Stage.PRE_FLOP:
+              return everyOneElseIsAllinOrFolds ? [0, 1, 2, 3, 4] : [0, 1, 2];
+            case Stage.FLOP:
+              return everyOneElseIsAllinOrFolds ? [3, 4] : [3];
+            case Stage.TURN:
+              return [4];
+            case Stage.RIVER:
+              return [];
+          }
+        })();
 
-      for (let cardOffset of cardOffsetsToShow) {
-        await this.mentalPokerGameRoom.showCard(round, cardOffset);
+        for (let cardOffset of cardOffsetsToShow) {
+          await this.mentalPokerGameRoom.showCard(round, cardOffset);
+        }
+
+        if (everyOneElseIsAllinOrFolds || roundData.stage === Stage.RIVER) {
+          await this.showdown(round, roundData);
+        }
       }
 
-      if (everyOneElseIsAllinOrFolds || roundData.stage === Stage.RIVER) {
-        await this.showdown(round, roundData);
-      } else {
+      if (!everyOneElseIsAllinOrFolds && roundData.stage !== Stage.RIVER) {
         this.emitter.emit(
           'whoseTurn',
           round,

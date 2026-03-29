@@ -83,6 +83,29 @@ function toBigIntEncodedDeck(deck: StringEncodedDeck): EncodedDeck {
   return new EncodedDeck(deck.map(s => BigInt(s)));
 }
 
+const SESSION_INDIVIDUAL_KEYS = 'mental-holdem:individualKeys';
+
+function storeIndividualKeys(round: number, aliceOrBob: 'alice' | 'bob', player: Player, cards: number) {
+  const keys: Record<number, { d: string; n: string }> = {};
+  for (let i = 0; i < cards; i++) {
+    const dk = player.getIndividualKey(i).decryptionKey;
+    keys[i] = { d: dk.d.toString(), n: dk.n.toString() };
+  }
+  sessionStorage.setItem(`${SESSION_INDIVIDUAL_KEYS}:${round}:${aliceOrBob}`, JSON.stringify(keys));
+}
+
+function loadIndividualKeys(round: number, aliceOrBob: 'alice' | 'bob'): Map<number, DecryptionKey> {
+  const result = new Map<number, DecryptionKey>();
+  const stored = sessionStorage.getItem(`${SESSION_INDIVIDUAL_KEYS}:${round}:${aliceOrBob}`);
+  if (stored) {
+    const keys: Record<string, { d: string; n: string }> = JSON.parse(stored);
+    for (const [offset, key] of Object.entries(keys)) {
+      result.set(Number(offset), new DecryptionKey(BigInt(key.d), BigInt(key.n)));
+    }
+  }
+  return result;
+}
+
 class MentalPokerRound {
   mentalPokerSettings: Deferred<MentalPokerRoundSettings> = new Deferred();
   alice: Deferred<Player | null> = new Deferred();
@@ -98,6 +121,9 @@ class MentalPokerRound {
       bob: new Deferred<DecryptionKey>(),
     }
   });
+  // Individual decryption keys stored for use after page refresh (when Player is null)
+  aliceIndividualKeys: Map<number, DecryptionKey> = new Map();
+  bobIndividualKeys: Map<number, DecryptionKey> = new Map();
 }
 
 export interface MentalPokerGameRoomEvents {
@@ -133,19 +159,19 @@ export default class MentalPokerGameRoom {
     this.propagate('connected');
     this.propagate('members');
 
-    this.gameRoom.listener.on('event', this.lcm.register(({ data }) => {
+    this.gameRoom.listener.on('event', this.lcm.register(({ data }, _who, replay) => {
       switch (data.type) {
         case 'start':
-          this.handleRoundStartEvent(data);
+          this.handleRoundStartEvent(data, !!replay);
           break;
         case 'deck/step1':
-          this.handleDeckStep1Event(data);
+          this.handleDeckStep1Event(data, !!replay);
           break;
         case 'deck/step2':
-          this.handleDeckStep2Event(data);
+          this.handleDeckStep2Event(data, !!replay);
           break;
         case 'deck/step3':
-          this.handleDeckStep3Event(data);
+          this.handleDeckStep3Event(data, !!replay);
           break;
         case 'deck/finalized':
           this.handleDeckFinalizedEvent(data);
@@ -213,6 +239,25 @@ export default class MentalPokerGameRoom {
     return newRoundData;
   }
 
+  private async getDecryptionKeyForCard(
+    roundData: MentalPokerRound,
+    cardOffset: number,
+    aliceOrBob: 'alice' | 'bob',
+  ): Promise<{ d: string; n: string } | null> {
+    const player = await (aliceOrBob === 'alice' ? roundData.alice : roundData.bob).promise;
+    if (player) {
+      const dk = player.getIndividualKey(cardOffset).decryptionKey;
+      return { d: dk.d.toString(), n: dk.n.toString() };
+    }
+
+    // Fall back to stored individual keys (after page refresh when Player is null)
+    const storedKeys = aliceOrBob === 'alice'
+      ? roundData.aliceIndividualKeys
+      : roundData.bobIndividualKeys;
+    const dk = storedKeys.get(cardOffset);
+    return dk ? { d: dk.d.toString(), n: dk.n.toString() } : null;
+  }
+
   async showCard(round: number, cardOffset: number) {
     const roundData = this.dataByRounds.get(round);
     if (!roundData) {
@@ -220,28 +265,18 @@ export default class MentalPokerGameRoom {
       return;
     }
 
-    const showCardIfAliceOrBob = async (player: Player, aliceOrBob: 'alice' | 'bob') => {
-      console.debug(`[${aliceOrBob}] showing the card [ ${cardOffset} ] to all the players.`);
-      const dk = player.getIndividualKey(cardOffset).decryptionKey;
-      await this.firePublicEvent({
-        type: 'card/decrypt',
-        round,
-        cardOffset,
-        aliceOrBob,
-        decryptionKey: {
-          d: dk.d.toString(),
-          n: dk.n.toString(),
-        },
-      });
-    };
-
-    const alice = await roundData.alice.promise;
-    if (alice) {
-      await showCardIfAliceOrBob(alice, 'alice');
-    }
-    const bob = await roundData.bob.promise;
-    if (bob) {
-      await showCardIfAliceOrBob(bob, 'bob');
+    for (const aliceOrBob of ['alice', 'bob'] as const) {
+      const dk = await this.getDecryptionKeyForCard(roundData, cardOffset, aliceOrBob);
+      if (dk) {
+        console.debug(`[${aliceOrBob}] showing the card [ ${cardOffset} ] to all the players.`);
+        await this.firePublicEvent({
+          type: 'card/decrypt',
+          round,
+          cardOffset,
+          aliceOrBob,
+          decryptionKey: dk,
+        });
+      }
     }
   }
 
@@ -252,28 +287,18 @@ export default class MentalPokerGameRoom {
       return;
     }
 
-    const dealCardIfAliceOrBob = async (player: Player, aliceOrBob: 'alice' | 'bob') => {
-      console.debug(`Dealing the card [ ${cardOffset} ] to ${recipient}.`);
-      const dk = player.getIndividualKey(cardOffset).decryptionKey;
-      await this.firePrivateEvent({
-        type: 'card/decrypt',
-        round,
-        cardOffset,
-        aliceOrBob,
-        decryptionKey: {
-          d: dk.d.toString(),
-          n: dk.n.toString(),
-        },
-      }, recipient);
-    };
-
-    const alice = await roundData.alice.promise;
-    if (alice) {
-      await dealCardIfAliceOrBob(alice, 'alice');
-    }
-    const bob = await roundData.bob.promise;
-    if (bob) {
-      await dealCardIfAliceOrBob(bob, 'bob');
+    for (const aliceOrBob of ['alice', 'bob'] as const) {
+      const dk = await this.getDecryptionKeyForCard(roundData, cardOffset, aliceOrBob);
+      if (dk) {
+        console.debug(`Dealing the card [ ${cardOffset} ] to ${recipient}.`);
+        await this.firePrivateEvent({
+          type: 'card/decrypt',
+          round,
+          cardOffset,
+          aliceOrBob,
+          decryptionKey: dk,
+        }, recipient);
+      }
     }
   }
 
@@ -292,11 +317,23 @@ export default class MentalPokerGameRoom {
     }, listener => this.gameRoom.listener.off(eventName, listener)));
   }
 
-  private async handleRoundStartEvent(e: RoundStartEvent) {
+  private async handleRoundStartEvent(e: RoundStartEvent, replay: boolean) {
     const settings = e.mentalPokerSettings;
 
     const roundData = this.getOrCreateDataForRound(e.round);
     roundData.mentalPokerSettings.resolve(settings);
+
+    if (replay) {
+      // During replay, skip Player creation and outgoing events.
+      // The deck steps and card/decrypt events are already in the log
+      // and will be replayed, resolving decryption keys directly.
+      // Load stored individual keys so showCard/dealCard can work post-replay.
+      roundData.alice.resolve(null);
+      roundData.bob.resolve(null);
+      roundData.aliceIndividualKeys = loadIndividualKeys(e.round, 'alice');
+      roundData.bobIndividualKeys = loadIndividualKeys(e.round, 'bob');
+      return;
+    }
 
     const myPeerId = await this.gameRoom.peerIdAsync;
     if (settings.alice === myPeerId) {
@@ -308,6 +345,7 @@ export default class MentalPokerGameRoom {
       roundData.alice.resolve(alicePromise);
 
       const alice = await alicePromise;
+      storeIndividualKeys(e.round, 'alice', alice, CARDS);
 
       console.debug('Encrypting and shuffling the deck by Alice.');
 
@@ -334,7 +372,8 @@ export default class MentalPokerGameRoom {
     }
   }
 
-  private async handleDeckStep1Event(e: DeckStep1Event) {
+  private async handleDeckStep1Event(e: DeckStep1Event, replay: boolean) {
+    if (replay) return;
     const roundData = this.getOrCreateDataForRound(e.round);
     const settings = await roundData.mentalPokerSettings.promise;
     const myPeerId = await this.gameRoom.peerIdAsync;
@@ -353,6 +392,7 @@ export default class MentalPokerGameRoom {
       roundData.bob.resolve(bobPromise);
 
       const bob = await bobPromise;
+      storeIndividualKeys(e.round, 'bob', bob, CARDS);
 
       console.debug('Double-encrypting and shuffling the deck by Bob.');
       const encryptedWithKeyAKeyB = bob.encryptAndShuffle(toBigIntEncodedDeck(e.deck));
@@ -365,7 +405,8 @@ export default class MentalPokerGameRoom {
     }
   }
 
-  private async handleDeckStep2Event(e: DeckStep2Event) {
+  private async handleDeckStep2Event(e: DeckStep2Event, replay: boolean) {
+    if (replay) return;
     const roundData = this.getOrCreateDataForRound(e.round);
     const alice = await roundData.alice.promise;
 
@@ -380,7 +421,8 @@ export default class MentalPokerGameRoom {
     }
   }
 
-  private async handleDeckStep3Event(e: DeckStep3Event) {
+  private async handleDeckStep3Event(e: DeckStep3Event, replay: boolean) {
+    if (replay) return;
     const roundData = this.getOrCreateDataForRound(e.round);
     const bob = await roundData.bob.promise;
 
