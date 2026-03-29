@@ -1,429 +1,375 @@
-import EventEmitter from "eventemitter3";
-import { PeerConnectOption } from "peerjs";
-import GameRoom, { DataConnectionLike, DataConnectionLikeEvents, GameEvent, MembersChangedEvent, PeerLike, PeerLikeEvents } from "./GameRoom";
+import GameRoom, { GameEvent, MeshLike } from "./GameRoom";
 
-class MockDataConnection extends EventEmitter<DataConnectionLikeEvents> implements DataConnectionLike {
-  peer: string;
-  dataSent: any[] = [];
+type Listeners<T> = {
+  ready: Array<(localPeerId: string) => void>;
+  message: Array<(message: any, replay: boolean) => void>;
+  peersChanged: Array<(peers: string[]) => void>;
+  leaderChanged: Array<(leaderId: string | null) => void>;
+  error: Array<(error: Error) => void>;
+};
+
+class MockMesh<T> implements MeshLike<T> {
+  private _peerId: string | undefined;
+  private _peers: string[] = [];
+  private _leaderId: string | null = null;
+  private listeners: Listeners<T> = {
+    ready: [],
+    message: [],
+    peersChanged: [],
+    leaderChanged: [],
+    error: [],
+  };
+
+  publicSent: T[] = [];
+  privateSent: Array<{ recipient: string; data: T }> = [];
   closed: boolean = false;
 
-  private paired?: MockDataConnection;
+  private paired: MockMesh<T>[] = [];
 
-  constructor(peer: string) {
-    super();
-    this.peer = peer;
+  get peerId() { return this._peerId; }
+  get peers() { return this._peers; }
+  get leaderId() { return this._leaderId; }
+
+  async sendPublic(data: T): Promise<boolean> {
+    this.publicSent.push(data);
+    // Simulate Raft commit: deliver to self and all paired meshes
+    const msg = { type: 'public' as const, sender: this._peerId!, data };
+    this.emit('message', msg, false);
+    for (const peer of this.paired) {
+      peer.emit('message', msg, false);
+    }
+    return true;
   }
 
-  send(data: any, chunked?: boolean): void | Promise<void> {
-    this.dataSent.push(data);
-    this.paired?.emit('data', data);
+  async sendPrivate(recipientPeerId: string, data: T): Promise<boolean> {
+    this.privateSent.push({ recipient: recipientPeerId, data });
+    // Simulate Raft commit + decryption: deliver to sender and recipient only
+    const msg = { type: 'private' as const, sender: this._peerId!, recipient: recipientPeerId, data };
+    this.emit('message', msg, false);
+    for (const peer of this.paired) {
+      if (peer._peerId === recipientPeerId) {
+        peer.emit('message', msg, false);
+      }
+    }
+    return true;
   }
 
-  pair(paired: MockDataConnection) {
-    this.paired = paired;
-    paired.paired = this;
+  on(event: string, listener: (...args: any[]) => void): void {
+    const list = this.listeners[event as keyof Listeners<T>];
+    if (list) {
+      list.push(listener);
+    }
+  }
+
+  off(event: string, listener: (...args: any[]) => void): void {
+    const list = this.listeners[event as keyof Listeners<T>];
+    if (list) {
+      const idx = list.indexOf(listener);
+      if (idx >= 0) list.splice(idx, 1);
+    }
   }
 
   close(): void {
     this.closed = true;
   }
 
-  get lastDataSent() {
-    if (this.dataSent.length <= 0) {
-      throw new Error('no data was sent');
+  // Test helpers
+
+  emit(event: string, ...args: any[]) {
+    const list = this.listeners[event as keyof Listeners<T>];
+    if (list) {
+      for (const listener of [...list]) {
+        (listener as Function)(...args);
+      }
     }
-    return this.dataSent[this.dataSent.length - 1];
-  }
-}
-  
-class MockPeer extends EventEmitter<PeerLikeEvents> implements PeerLike {
-  connections: MockDataConnection[] = [];
-  connect(peer: string, options?: PeerConnectOption): DataConnectionLike {
-    const newConn = new MockDataConnection(peer);
-    this.connections.push(newConn);
-    return newConn;
   }
 
-  get lastConnection() {
-    if (this.connections.length <= 0) {
-      throw new Error('No connection was established.');
+  simulateOpen(peerId: string) {
+    this._peerId = peerId;
+    this._peers = [peerId];
+    this.emit('ready', peerId);
+    // Simulate Raft leader election (single-node becomes leader immediately)
+    this._leaderId = peerId;
+    this.emit('leaderChanged', peerId);
+  }
+
+  simulatePeerConnected(remotePeerId: string) {
+    if (!this._peers.includes(remotePeerId)) {
+      this._peers.push(remotePeerId);
     }
-    return this.connections[this.connections.length - 1];
+    this.emit('peersChanged', [...this._peers]);
+  }
+
+  simulatePeerDisconnected(remotePeerId: string) {
+    this._peers = this._peers.filter(p => p !== remotePeerId);
+    this.emit('peersChanged', [...this._peers]);
+  }
+
+  pair(other: MockMesh<T>) {
+    if (!this.paired.includes(other)) {
+      this.paired.push(other);
+    }
+    if (!other.paired.includes(this)) {
+      other.paired.push(this);
+    }
   }
 }
-
-describe('MockDataConnections', () => {
-  test('pairing two MockDataConnections', async () => {
-    const a = new MockDataConnection('a');
-    const b = new MockDataConnection('b');
-    a.pair(b);
-  
-    const dataReceivedByA = new Promise(resolve => {
-      a.on('data', data => {
-        resolve(data);
-      });
-    });
-  
-    const dataReceivedByB = new Promise(resolve => {
-      b.on('data', data => {
-        resolve(data);
-      });
-    });
-  
-    a.send('test1');
-    expect(await dataReceivedByB).toBe('test1');
-  
-    b.send('test2');
-    expect(await dataReceivedByA).toBe('test2');
-  });
-});
 
 describe('GameRoom', () => {
   test('status transition of a host GameRoom', async () => {
-    const mockPeer = new MockPeer();
-    const hostGameRoom = new GameRoom(mockPeer);
-    expect(hostGameRoom.status).toBe('NotReady');
+    const mesh = new MockMesh<string>();
+    const gameRoom = new GameRoom(mesh);
+    expect(gameRoom.status).toBe('NotReady');
 
-    mockPeer.emit('open', 'test');
-    expect(hostGameRoom.status).toBe('PeerServerConnected');
-    
-    mockPeer.emit('close');
-    expect(hostGameRoom.status).toBe('Closed');
+    mesh.simulateOpen('host');
+    expect(gameRoom.status).toBe('PeerServerConnected');
+
+    gameRoom.close();
+    expect(gameRoom.status).toBe('Closed');
+    expect(mesh.closed).toBe(true);
   });
 
   test('status transition of a guest GameRoom', async () => {
-    const hostId = 'dummy';
-    const mockPeer = new MockPeer();
-    const hostGameRoom = new GameRoom(mockPeer, {
-      hostId,
-    });
-    expect(hostGameRoom.status).toBe('NotReady');
+    const mesh = new MockMesh<string>();
+    const gameRoom = new GameRoom(mesh, { hostId: 'host' });
+    expect(gameRoom.status).toBe('NotReady');
 
-    mockPeer.emit('open', 'test');
-    expect(hostGameRoom.status).toBe('PeerServerConnected');
-    
-    mockPeer.lastConnection.emit('open');
-    expect(hostGameRoom.status).toBe('HostConnected');
+    mesh.simulateOpen('guest');
+    expect(gameRoom.status).toBe('PeerServerConnected');
 
-    mockPeer.emit('close');
-    expect(hostGameRoom.status).toBe('Closed');
+    mesh.simulatePeerConnected('host');
+    expect(gameRoom.status).toBe('HostConnected');
+
+    gameRoom.close();
+    expect(gameRoom.status).toBe('Closed');
   });
 
   test("host's members are updated", async () => {
-    const mockPeer = new MockPeer();
-    const hostGameRoom = new GameRoom(mockPeer);
-    const hostId = 'host';
-    mockPeer.emit('open', hostId);
+    const mesh = new MockMesh<string>();
+    const gameRoom = new GameRoom(mesh);
+    mesh.simulateOpen('host');
 
-    expect(hostGameRoom.members.length).toBe(1);
-    expect(hostGameRoom.members[0]).toBe(hostId);
+    expect(gameRoom.members).toEqual(['host']);
 
-    const guestIds = ['guest0', 'guest1'];
-    const guestConns = [
-      new MockDataConnection(guestIds[0]),
-      new MockDataConnection(guestIds[1]),
-    ];
-    mockPeer.emit('connection', guestConns[0]);
-    expect(hostGameRoom.members.length).toBe(2);
-    expect(hostGameRoom.members[1]).toBe(guestIds[0]);
+    mesh.simulatePeerConnected('guest0');
+    expect(gameRoom.members).toEqual(['host', 'guest0']);
 
-    mockPeer.emit('connection', guestConns[1]);
-    expect(hostGameRoom.members.length).toBe(3);
-    expect(hostGameRoom.members[2]).toBe(guestIds[1]);
+    mesh.simulatePeerConnected('guest1');
+    expect(gameRoom.members).toEqual(['host', 'guest0', 'guest1']);
 
-    guestConns[0].emit('open');
-    guestConns[0].emit('close');
-    expect(hostGameRoom.members).toEqual([hostId, guestIds[1]]);
+    mesh.simulatePeerDisconnected('guest0');
+    expect(gameRoom.members).toEqual(['host', 'guest1']);
   });
 
   test("guest's members are updated", async () => {
-    const hostId = 'host';
-    const mockPeer = new MockPeer();
-    const guestGameRoom = new GameRoom(mockPeer, {
-      hostId,
-    });
-    const guestId = 'guest';
-    mockPeer.emit('open', guestId);
-    expect(guestGameRoom.members.length).toBe(0);
+    const mesh = new MockMesh<string>();
+    const gameRoom = new GameRoom(mesh, { hostId: 'host' });
+    mesh.simulateOpen('guest');
+    expect(gameRoom.members).toEqual(['guest']);
 
-    mockPeer.lastConnection.emit('open');
-    const memberChangedEvent: MembersChangedEvent = {
-      type: '_members',
-      data: [hostId, guestId],
-    };
-    mockPeer.lastConnection.emit('data', memberChangedEvent);
-    expect(guestGameRoom.members).toEqual([hostId, guestId]);
+    mesh.simulatePeerConnected('host');
+    expect(gameRoom.members).toEqual(['guest', 'host']);
   });
 
-  test('data is sent by guest', async () => {
-    const hostId = 'host';
-    const mockGuestPeer = new MockPeer();
-    const guestGameRoom = new GameRoom<string>(mockGuestPeer, {
-      hostId,
-    });
-    const guestId = 'guest';
-    mockGuestPeer.emit('open', guestId);
+  test('send public event from guest', async () => {
+    const mesh = new MockMesh<string>();
+    const gameRoom = new GameRoom<string>(mesh, { hostId: 'host' });
+    mesh.simulateOpen('guest');
+    mesh.simulatePeerConnected('host');
 
-    mockGuestPeer.lastConnection.emit('open');
-    await guestGameRoom.emitEvent({
+    await gameRoom.emitEvent({
       type: 'public',
       data: 'test',
-      sender: guestId,
+      sender: 'guest',
     });
-    const lastDataSent = mockGuestPeer.lastConnection.lastDataSent;
-    expect(lastDataSent.data).toBe('test');
+    expect(mesh.publicSent).toEqual(['test']);
   });
 
-  const DEFAULT_HOST_ID = 'host';
-
-  function openHost(
-    hostId: string = DEFAULT_HOST_ID,
-  ) {
-    const mockHostPeer = new MockPeer();
-    const hostGameRoom = new GameRoom<string>(mockHostPeer);
-    mockHostPeer.emit('open', hostId);
-
-    return {
-      hostGameRoom,
-      mockHostPeer,
-    };
+  function createMeshPair() {
+    const hostMesh = new MockMesh<string>();
+    const guestMesh = new MockMesh<string>();
+    hostMesh.pair(guestMesh);
+    return { hostMesh, guestMesh };
   }
 
-  function openGuest(
-    guestId: string,
-    hostId: string = DEFAULT_HOST_ID,
-  ) {
-    const mockGuestPeer = new MockPeer();
-    const guestGameRoom = new GameRoom<string>(mockGuestPeer, {
-      hostId,
-    });
-    mockGuestPeer.emit('open', guestId);
-    return {
-      guestGameRoom,
-      mockGuestPeer,
-    };
-  }
+  test('send public data from guest to host', async () => {
+    const { hostMesh, guestMesh } = createMeshPair();
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guestGameRoom = new GameRoom<string>(guestMesh, { hostId: 'host' });
 
-  function connectGuestToHost(
-    guestId: string,
-    mockGuestPeer: MockPeer,
-    mockHostPeer: MockPeer,
-  ) {
-    const mockGuestConn = mockGuestPeer.lastConnection;
+    hostMesh.simulateOpen('host');
+    guestMesh.simulateOpen('guest');
+    hostMesh.simulatePeerConnected('guest');
+    guestMesh.simulatePeerConnected('host');
 
-    const mockHostConn = new MockDataConnection(guestId);
-    mockGuestConn.pair(mockHostConn);
-
-    mockHostPeer.emit('connection', mockHostConn);
-
-    mockHostConn.emit('open');
-    mockGuestConn.emit('open');
-
-    return {
-      mockGuestConn,
-      mockHostConn,
-    };
-  }
-
-  test('send data from guest to host', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestId = 'guest';
-    const {mockGuestPeer, guestGameRoom} = openGuest(guestId);
-    const {mockGuestConn} = connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
-
-    const hostGameRoomEventPromise = new Promise<GameEvent<string>>(resolve =>
-      hostGameRoom.onEvent(e => {
-        resolve(e);
-      })
+    const hostEventPromise = new Promise<GameEvent<string>>(resolve =>
+      hostGameRoom.onEvent(e => resolve(e))
     );
 
     await guestGameRoom.emitEvent({
       type: 'public',
       data: 'test',
-      sender: guestId,
+      sender: 'guest',
     });
-    expect(mockGuestConn.lastDataSent.data).toBe('test');
 
-    const hostGameRoomEvent = await hostGameRoomEventPromise;
-    expect(hostGameRoomEvent.data).toBe('test');
-    expect(hostGameRoomEvent.type).toBe('public');
-    expect(hostGameRoomEvent.sender).toBe(guestId);
+    const hostEvent = await hostEventPromise;
+    expect(hostEvent.data).toBe('test');
+    expect(hostEvent.type).toBe('public');
+    expect(hostEvent.sender).toBe('guest');
   });
 
-  test('send data from host to guest', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestId = 'guest';
-    const {mockGuestPeer, guestGameRoom} = openGuest(guestId);
-    const {mockHostConn} = connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
+  test('send public data from host to guest', async () => {
+    const { hostMesh, guestMesh } = createMeshPair();
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guestGameRoom = new GameRoom<string>(guestMesh, { hostId: 'host' });
 
-    const guestGameRoomEventPromise = new Promise<GameEvent<string>>(resolve =>
-      guestGameRoom.onEvent(e => {
-        resolve(e);
-      })
+    hostMesh.simulateOpen('host');
+    guestMesh.simulateOpen('guest');
+    hostMesh.simulatePeerConnected('guest');
+    guestMesh.simulatePeerConnected('host');
+
+    const guestEventPromise = new Promise<GameEvent<string>>(resolve =>
+      guestGameRoom.onEvent(e => resolve(e))
     );
 
     await hostGameRoom.emitEvent({
       type: 'public',
       data: 'test',
-      sender: guestId,
+      sender: 'host',
     });
-    expect(mockHostConn.lastDataSent.data).toBe('test');
 
-    const guestGameRoomEvent = await guestGameRoomEventPromise;
-    expect(guestGameRoomEvent.data).toBe('test');
-    expect(guestGameRoomEvent.type).toBe('public');
-    expect(guestGameRoomEvent.sender).toBe(guestId);
+    const guestEvent = await guestEventPromise;
+    expect(guestEvent.data).toBe('test');
+    expect(guestEvent.type).toBe('public');
+    expect(guestEvent.sender).toBe('host');
   });
 
-  test('broadcast data from one guest to others thru host', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestIds = ['guest0', 'guest1'];
-    const guests = [
-      openGuest(guestIds[0]),
-      openGuest(guestIds[1]),
-    ];
-    const connections = [
-      connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer),
-      connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer),
-    ]
+  test('broadcast data from one guest to others thru mesh', async () => {
+    const mesh0 = new MockMesh<string>();
+    const mesh1 = new MockMesh<string>();
+    const hostMesh = new MockMesh<string>();
+    mesh0.pair(mesh1);
+    mesh0.pair(hostMesh);
+    mesh1.pair(hostMesh);
+
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guest0GameRoom = new GameRoom<string>(mesh0, { hostId: 'host' });
+    const guest1GameRoom = new GameRoom<string>(mesh1, { hostId: 'host' });
+
+    hostMesh.simulateOpen('host');
+    mesh0.simulateOpen('guest0');
+    mesh1.simulateOpen('guest1');
 
     const eventPromises = [
-      new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);})),
+      new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => resolve(e))),
+      new Promise<GameEvent<string>>(resolve => guest0GameRoom.onEvent(e => resolve(e))),
+      new Promise<GameEvent<string>>(resolve => guest1GameRoom.onEvent(e => resolve(e))),
     ];
 
-    await guests[0].guestGameRoom.emitEvent({
+    await guest0GameRoom.emitEvent({
       type: 'public',
       data: 'test',
-      sender: guestIds[0],
+      sender: 'guest0',
     });
-    expect(connections[0].mockGuestConn.lastDataSent.data).toBe('test');
 
-    for (const guestGameRoomEventPromise of eventPromises) {
-      const guest1GameRoomEvent = await guestGameRoomEventPromise;
-      expect(guest1GameRoomEvent.data).toBe('test');
-      expect(guest1GameRoomEvent.type).toBe('public');
-      expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
+    for (const promise of eventPromises) {
+      const event = await promise;
+      expect(event.data).toBe('test');
+      expect(event.type).toBe('public');
+      expect(event.sender).toBe('guest0');
     }
   });
 
-  test('broadcast data from host to all guests', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestIds = ['guest0', 'guest1'];
-    const guests = [
-      openGuest(guestIds[0]),
-      openGuest(guestIds[1]),
-    ];
-    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
-    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+  test('send private data from one guest to another', async () => {
+    const mesh0 = new MockMesh<string>();
+    const mesh1 = new MockMesh<string>();
+    mesh0.pair(mesh1);
 
-    const eventPromises = [
-      new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);})),
-      new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);})),
-    ];
+    const guest0GameRoom = new GameRoom<string>(mesh0, { hostId: 'host' });
+    const guest1GameRoom = new GameRoom<string>(mesh1, { hostId: 'host' });
 
-    await hostGameRoom.emitEvent({
-      type: 'public',
-      data: 'test',
-      sender: guestIds[0],
+    mesh0.simulateOpen('guest0');
+    mesh1.simulateOpen('guest1');
+
+    const recipientEventPromise = new Promise<GameEvent<string>>(resolve =>
+      guest1GameRoom.onEvent(e => resolve(e))
+    );
+
+    await guest0GameRoom.emitEvent({
+      type: 'private',
+      data: 'secret',
+      sender: 'guest0',
+      recipient: 'guest1',
     });
 
-    for (const guestGameRoomEventPromise of eventPromises) {
-      const guest1GameRoomEvent = await guestGameRoomEventPromise;
-      expect(guest1GameRoomEvent.data).toBe('test');
-      expect(guest1GameRoomEvent.type).toBe('public');
-      expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
-    }
+    const event = await recipientEventPromise;
+    expect(event.data).toBe('secret');
+    expect(event.type).toBe('private');
+    expect(event.sender).toBe('guest0');
   });
 
-  test('send private data from one guest to another thru host', async () => {
-    const {mockHostPeer} = openHost();
-    const guestIds = ['guest0', 'guest1'];
-    const guests = [
-      openGuest(guestIds[0]),
-      openGuest(guestIds[1]),
-    ];
-    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
-    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+  test('send private data from guest to host', async () => {
+    const { hostMesh, guestMesh } = createMeshPair();
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guestGameRoom = new GameRoom<string>(guestMesh, { hostId: 'host' });
 
-    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => guests[1].guestGameRoom.onEvent(e => {resolve(e);}));
+    hostMesh.simulateOpen('host');
+    guestMesh.simulateOpen('guest');
 
-    await guests[0].guestGameRoom.emitEvent({
+    const hostEventPromise = new Promise<GameEvent<string>>(resolve =>
+      hostGameRoom.onEvent(e => resolve(e))
+    );
+
+    await guestGameRoom.emitEvent({
       type: 'private',
-      data: 'test',
-      sender: guestIds[0],
-      recipient: guestIds[1],
+      data: 'secret',
+      sender: 'guest',
+      recipient: 'host',
     });
 
-    const guest1GameRoomEvent = await recipientEventPromise;
-    expect(guest1GameRoomEvent.data).toBe('test');
-    expect(guest1GameRoomEvent.type).toBe('private');
-    expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
-  }, 30000);
+    const event = await hostEventPromise;
+    expect(event.data).toBe('secret');
+    expect(event.type).toBe('private');
+    expect(event.sender).toBe('guest');
+  });
 
-  test('send private data from one guest to host', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestIds = ['guest0', 'guest1'];
-    const guests = [
-      openGuest(guestIds[0]),
-      openGuest(guestIds[1]),
-    ];
-    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
-    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
+  test('send private data from host to guest', async () => {
+    const { hostMesh, guestMesh } = createMeshPair();
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guestGameRoom = new GameRoom<string>(guestMesh, { hostId: 'host' });
 
-    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => hostGameRoom.onEvent(e => {resolve(e);}));
+    hostMesh.simulateOpen('host');
+    guestMesh.simulateOpen('guest');
 
-    await guests[0].guestGameRoom.emitEvent({
-      type: 'private',
-      data: 'test',
-      sender: guestIds[0],
-      recipient: DEFAULT_HOST_ID,
-    });
-
-    const guest1GameRoomEvent = await recipientEventPromise;
-    expect(guest1GameRoomEvent.data).toBe('test');
-    expect(guest1GameRoomEvent.type).toBe('private');
-    expect(guest1GameRoomEvent.sender).toBe(guestIds[0]);
-  }, 30000);
-
-  test('send private data from host to a guest', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestIds = ['guest0', 'guest1'];
-    const guests = [
-      openGuest(guestIds[0]),
-      openGuest(guestIds[1]),
-    ];
-    connectGuestToHost(guestIds[0], guests[0].mockGuestPeer, mockHostPeer);
-    connectGuestToHost(guestIds[1], guests[1].mockGuestPeer, mockHostPeer);
-
-    const recipientEventPromise = new Promise<GameEvent<string>>(resolve => guests[0].guestGameRoom.onEvent(e => {resolve(e);}));
+    const guestEventPromise = new Promise<GameEvent<string>>(resolve =>
+      guestGameRoom.onEvent(e => resolve(e))
+    );
 
     await hostGameRoom.emitEvent({
       type: 'private',
-      data: 'test',
-      sender: DEFAULT_HOST_ID,
-      recipient: guestIds[0],
+      data: 'secret',
+      sender: 'host',
+      recipient: 'guest',
     });
 
-    const guest1GameRoomEvent = await recipientEventPromise;
-    expect(guest1GameRoomEvent.data).toBe('test');
-    expect(guest1GameRoomEvent.type).toBe('private');
-    expect(guest1GameRoomEvent.sender).toBe(DEFAULT_HOST_ID);
-  }, 30000);
+    const event = await guestEventPromise;
+    expect(event.data).toBe('secret');
+    expect(event.type).toBe('private');
+    expect(event.sender).toBe('host');
+  });
 
   test('resources are released after closed', async () => {
-    const {mockHostPeer, hostGameRoom} = openHost();
-    const guestId = 'guest';
-    const {mockGuestPeer, guestGameRoom} = openGuest(guestId);
-    connectGuestToHost(guestId, mockGuestPeer, mockHostPeer);
+    const { hostMesh, guestMesh } = createMeshPair();
+    const hostGameRoom = new GameRoom<string>(hostMesh);
+    const guestGameRoom = new GameRoom<string>(guestMesh, { hostId: 'host' });
 
-    await guestGameRoom.close();
-    await hostGameRoom.close();
+    hostMesh.simulateOpen('host');
+    guestMesh.simulateOpen('guest');
 
-    for (let connection of [...mockHostPeer.connections, ...mockGuestPeer.connections]) {
-      expect(connection.closed).toBe(true);
-    }
+    guestGameRoom.close();
+    hostGameRoom.close();
+
+    expect(guestMesh.closed).toBe(true);
+    expect(hostMesh.closed).toBe(true);
   });
 });

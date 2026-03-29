@@ -1,15 +1,6 @@
 import EventEmitter from "eventemitter3";
-import { DataConnection, DataConnectionErrorType, MediaConnection, PeerConnectOption } from "peerjs";
 import Deferred from "./Deferred";
-import { decrypt, encrypt } from "./HybridPublicKeyCrypto";
-import { arrayBufferToHex, hexToArrayBuffer } from "./utils";
-import LifecycleManager from "./LifecycleManager";
 import {EventListener} from "./types";
-
-const PEER_CONNECT_OPTIONS = {
-  reliable: true,
-  serialization: 'json',
-};
 
 export type GameRoomStatus =
   | 'NotReady'
@@ -33,36 +24,6 @@ export interface PrivateGameEvent<T> {
 
 export type GameEvent<T> = PublicGameEvent<T> | PrivateGameEvent<T>;
 
-export interface MembersChangedEvent {
-  type: '_members';
-  data: string[];
-}
-
-export interface PublicKeyEvent {
-  type: '_publicKey';
-  sender: string;
-  jwk: JsonWebKey;
-}
-
-export interface EncryptedPrivateGameEvent {
-  type: '_encrypted';
-  sender: string;
-  recipient: string;
-  cipherHex: string;
-}
-
-export interface ReplayEvent<T> {
-  type: '_replay';
-  events: Array<[PublicGameEvent<T>, string]>;
-}
-
-export type InternalEvent<T> =
-  | MembersChangedEvent
-  | PublicKeyEvent
-  | EncryptedPrivateGameEvent
-  | ReplayEvent<T>
-;
-
 export interface GameRoomEvents<T> {
   status: (status: GameRoomStatus) => void;
   connected: (peerId: string) => void;
@@ -72,203 +33,102 @@ export interface GameRoomEvents<T> {
 
 export type GameRoomOptions = {
   hostId?: string;
-  modulusLength?: number;
 }
 
-export interface DataConnectionLikeEvents {
-  open: () => void;
-  data: (data: unknown) => void;
-  error: (error: any) => void;
-  iceStateChanged: (state: RTCIceConnectionState) => void;
-  close: () => void;
-}
-
-export interface EventEmitterLike<
-  EventTypes extends EventEmitter.ValidEventTypes = string | symbol,
-  Context extends any = any
-> {
-  on<T extends EventEmitter.EventNames<EventTypes>>(
-    event: T,
-    fn: EventEmitter.EventListener<EventTypes, T>,
-    context?: Context
-  ): this;
-
-  off<T extends EventEmitter.EventNames<EventTypes>>(
-    event: T,
-    fn?: EventEmitter.EventListener<EventTypes, T>,
-    context?: Context,
-    once?: boolean
-  ): this;
-}
-
-export interface DataConnectionLike extends EventEmitterLike<DataConnectionLikeEvents, DataConnectionErrorType> {
-  readonly peer: string;
-  send(data: any, chunked?: boolean): void | Promise<void>;
+/**
+ * Minimal interface for the mesh network that GameRoom depends on.
+ * This matches the public API of DandelionMesh.
+ */
+export interface MeshLike<T> {
+  readonly peerId: string | undefined;
+  readonly peers: string[];
+  readonly leaderId: string | null;
+  sendPublic(data: T): Promise<boolean>;
+  sendPrivate(recipientPeerId: string, data: T): Promise<boolean>;
+  on(event: 'ready', listener: (localPeerId: string) => void): void;
+  on(event: 'message', listener: (message: { type: 'public'; sender: string; data: T } | { type: 'private'; sender: string; recipient: string; data: T }, replay: boolean) => void): void;
+  on(event: 'peersChanged', listener: (peers: string[]) => void): void;
+  on(event: 'leaderChanged', listener: (leaderId: string | null) => void): void;
+  on(event: 'error', listener: (error: Error) => void): void;
+  off(event: string, listener: (...args: any[]) => void): void;
   close(): void;
-}
-
-export interface PeerLikeEvents {
-  open: (id: string) => void;
-  connection: (dataConnection: DataConnectionLike) => void;
-  call: (mediaConnection: MediaConnection) => void;
-  close: () => void;
-  disconnected: (currentId: string) => void;
-  error: (error: any) => void;
-}
-
-export interface PeerLike extends EventEmitterLike<PeerLikeEvents, never> {
-  connect(peer: string, options?: PeerConnectOption): DataConnectionLike
 }
 
 export default class GameRoom<T> {
   private readonly emitter = new EventEmitter<GameRoomEvents<GameEvent<T>>>();
-  protected readonly hostConnectionPromise: Promise<DataConnection | DataConnectionLike | null>;
-  private readonly guestConnectionPromises: Map<string, Promise<DataConnection | DataConnectionLike>> = new Map();
+  private readonly mesh: MeshLike<T>;
 
-  private _status: GameRoomStatus;
-  private membersSyncedFromHost: string[] = [];
-
-  // RSA Keys
-  public readonly rsaKeyPairPromise: Promise<CryptoKeyPair>;
-  public readonly jwk: Promise<JsonWebKey>;
-  private rsaPublicKeysOfOthers: Map<string, Deferred<CryptoKey>> = new Map();
+  private _status: GameRoomStatus = 'NotReady';
 
   public peerId?: string;
   private peerIdDeferred = new Deferred<string>();
+  private leaderDeferred: Deferred<void> | null = new Deferred<void>();
 
   public readonly hostId?: string;
 
-  private publicEvents: Array<[PublicGameEvent<T>, string]> = [];
-
-  private readonly lcm = new LifecycleManager();
-
-  constructor(peer: PeerLike, options?: GameRoomOptions) {
-    this._status = 'NotReady';
-    this.emitter.emit('status', this._status);
-    this.rsaKeyPairPromise = window.crypto.subtle.generateKey(
-      {
-        name: 'RSA-OAEP',
-        modulusLength: options?.modulusLength ?? 4096,
-        publicExponent: new Uint8Array([1, 0, 1]),
-        hash: 'SHA-256',
-      },
-      true,
-      ['encrypt', 'decrypt'],
-    );
-    this.jwk = this.rsaKeyPairPromise.then(rsaKeyPair => window.crypto.subtle.exportKey(
-      'jwk',
-      rsaKeyPair.publicKey,
-    ));
-
+  constructor(mesh: MeshLike<T>, options?: GameRoomOptions) {
     this.hostId = options?.hostId;
+    this.mesh = mesh;
 
-    this.hostConnectionPromise = new Promise<DataConnection | DataConnectionLike | null>((resolve, reject) => {
-      peer.on('open', this.lcm.register(peerId => {
-        console.debug(`Connected to the PeerJS server. (peerId = ${peerId}).`);
-        this.peerId = peerId;
-        this.peerIdDeferred.resolve(peerId);
-        this._status = 'PeerServerConnected';
-        this.emitter.emit('status', this._status);
-        this.emitter.emit('connected', peerId);
-  
-        if (!options?.hostId) {
-          resolve(null);
-          return;
-        }
+    this.mesh.on('ready', (peerId: string) => {
+      console.debug(`Connected to the PeerJS server. (peerId = ${peerId}).`);
+      this.peerId = peerId;
+      this.peerIdDeferred.resolve(peerId);
+      this._status = 'PeerServerConnected';
+      this.emitter.emit('status', this._status);
+      this.emitter.emit('connected', peerId);
 
-        console.debug(`Connecting to the remote peer (${options.hostId})`);
-        const hostConn = peer.connect(options.hostId, PEER_CONNECT_OPTIONS);
-        hostConn.on('open', () => {
-          console.debug(`Connected to the remote peer (${options.hostId}) successfully.`);
-          this._status = 'HostConnected';
-          this.emitter.emit('status', this._status);
-          resolve(hostConn);
-          return;
-        });
-        hostConn.on('error', error => {
-          reject(error);
-          return;
-        });
-        hostConn.on('close', () => {
-          this._status = 'Closed';
-          console.debug(`The remote connection is closed (${options.hostId}).`);
-        });
-        hostConn.on('data', (data) => {
-          this.handleData(data, hostConn.peer);
-        });
-        return;
-      }, listener => peer.off('open', listener)));
+      if (!this.hostId) {
+        // Room creator: emit initial members (just self)
+        this.emitter.emit('members', this.members);
+      }
     });
 
-    if (!options?.hostId) { // if it is a host
-      peer.on('connection', this.lcm.register((conn) => {
-        const openedConnPromise = new Promise<DataConnectionLike>((resolve, reject) => {
-          conn.on('open', () => {
-            console.debug(`Established connection with the peer (peerId = ${conn.peer}).`);
-            resolve(conn);
-          });
-          conn.on('data', (data) => {
-            this.handleData(data, conn.peer);
-          });
-          conn.on('error', error => {
-            reject(error);
-          });
-        });
-        const previousGuestConnPromise = this.guestConnectionPromises.get(conn.peer);
-        if (previousGuestConnPromise) {
-          previousGuestConnPromise.then(conn => conn.close());
+    this.mesh.on('peersChanged', (_peers: string[]) => {
+      // For joiners, transition to HostConnected when connected to a peer
+      if (this.hostId && this._status === 'PeerServerConnected') {
+        this._status = 'HostConnected';
+        this.emitter.emit('status', this._status);
+      }
+      this.emitter.emit('members', this.members);
+    });
+
+    this.mesh.on('leaderChanged', (leaderId: string | null) => {
+      console.debug(`[GameRoom] leaderChanged: ${leaderId} (my peerId: ${this.peerId})`);
+      if (leaderId) {
+        if (this.leaderDeferred) {
+          this.leaderDeferred.resolve();
+          this.leaderDeferred = null;
         }
-        this.guestConnectionPromises.set(conn.peer, openedConnPromise);
-        conn.on('close', () => {
-          console.debug(`The client connection is closed. (peerId = ${conn.peer}).`);
-          this.guestConnectionPromises.delete(conn.peer);
-
-          const membersChangedEvent: MembersChangedEvent = {
-            type: '_members',
-            data: this.members,
-          };
-          this.sendMessageToAllGuests(membersChangedEvent);
-          this.emitter.emit('members', this.members);
-        });
-        const membersChangedEvent: MembersChangedEvent = {
-          type: '_members',
-          data: this.members,
-        };
-        this.sendMessageToAllGuests(membersChangedEvent);
-
-        // publish the host's public key again when there is a new guest
-        this.publishPublicKeyToSingleGuest(conn.peer);
-
-        const replayEvent: ReplayEvent<T> = {
-          type: '_replay',
-          events: [...this.publicEvents],
-        };
-        this.sendMessageToSingleGuest(conn.peer, replayEvent);
-
-        this.emitter.emit('members', this.members);
-      }, listener => peer.off('connection', listener)));
-
-      this.emitter.on('event', this.lcm.register((e: GameEvent<T>, whom: string) => {
-        if (e.type === 'public') {
-          this.publicEvents.push([e, whom]);
+      } else {
+        // Leader lost (e.g., during Raft re-election after cluster merge).
+        // Create a new deferred so waitForLeader blocks until a new leader is elected.
+        if (!this.leaderDeferred) {
+          this.leaderDeferred = new Deferred<void>();
         }
-      }, listener => this.emitter.off('event', listener)));
-    }
+      }
+    });
 
-    peer.on('close', () => {
-      this._status = 'Closed';
-      this.emitter.emit('status', this._status);
+    this.mesh.on('message', (msg, replay) => {
+      let gameEvent: GameEvent<T>;
+      if (msg.type === 'public') {
+        gameEvent = { type: 'public', sender: msg.sender, data: msg.data };
+      } else {
+        gameEvent = { type: 'private', sender: msg.sender, recipient: msg.recipient, data: msg.data };
+      }
+      console.debug(`[GameRoom] received ${msg.type} message from ${msg.sender}, replay=${replay}, dataType=${(msg.data as any)?.type}`);
+      try {
+        this.emitter.emit('event', gameEvent, msg.sender, replay);
+      } catch (e) {
+        console.error(`[GameRoom] ERROR in event handler for ${(msg.data as any)?.type}:`, e);
+      }
     });
   }
 
-  async close() {
-    await this.hostConnectionPromise.then(hostConn => hostConn?.close());
-    for (let connPromise of Array.from(this.guestConnectionPromises.values())) {
-      await connPromise.then((conn) => {
-        conn.close();
-      });
-    }
-    this.lcm.close();
+  close() {
+    this._status = 'Closed';
+    this.emitter.emit('status', this._status);
+    this.mesh.close();
   }
 
   get status() {
@@ -276,19 +136,42 @@ export default class GameRoom<T> {
   }
 
   get members() {
-    if (this.hostId) {
-      return this.membersSyncedFromHost;
+    return this.mesh.peers;
+  }
+
+  /**
+   * Waits for the Raft leader to be elected before sending.
+   * This ensures messages are not silently dropped during leader election.
+   */
+  private async waitForLeader(): Promise<void> {
+    if (this.mesh.leaderId) return;
+    if (this.leaderDeferred) {
+      await this.leaderDeferred.promise;
     }
-    return this.peerId
-      ? [this.peerId, ...(Array.from(this.guestConnectionPromises.keys()) || [])]
-      : [];
+  }
+
+  private async sendWithRetry(send: () => Promise<boolean>, label: string): Promise<void> {
+    const MAX_RETRIES = 50;
+    const RETRY_DELAY_MS = 200;
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      await this.waitForLeader();
+      console.debug(`sendWithRetry (${label}): calling send (attempt ${i + 1}/${MAX_RETRIES})...`);
+      const result = await send();
+      console.debug(`sendWithRetry (${label}): send returned ${result}`);
+      if (result) return;
+      if (i === 0 || i % 10 === 0) {
+        console.debug(`emitEvent (${label}): send returned false (attempt ${i + 1}/${MAX_RETRIES}), leaderId=${this.mesh.leaderId}, peers=${this.mesh.peers.join(',')}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+    console.warn(`emitEvent (${label}): max retries exceeded, message may be lost.`);
   }
 
   async emitEvent(e: GameEvent<T>) {
-    if (this.hostId) {
-      await this.fireEventFromGuest(e);
+    if (e.type === 'public') {
+      await this.sendWithRetry(() => this.mesh.sendPublic(e.data), 'public');
     } else {
-      await this.fireEventFromHost(e);
+      await this.sendWithRetry(() => this.mesh.sendPrivate(e.recipient, e.data), `private→${e.recipient}`);
     }
   }
 
@@ -306,252 +189,5 @@ export default class GameRoom<T> {
 
   get listener(): EventListener<GameRoomEvents<GameEvent<T>>> {
     return this.emitter;
-  }
-
-  private async sendMessageToSingleGuest(guestPeerId: string, data: any) {
-    const guestConn = this.guestConnectionPromises.get(guestPeerId);
-    if (!guestConn) {
-      console.warn(`The message is dropped because the connection (peerId = ${guestPeerId}) is not found.`);
-      console.debug(data);
-      return;
-    }
-    console.debug(`Sending a message to the client (peerId = ${guestPeerId}).`);
-    console.debug(data);
-    (await guestConn).send(data);
-  }
-
-  private async sendMessageToAllGuests(data: any, exceptPeerId?: string) {
-    if (this.guestConnectionPromises.size === 0) {
-      return;
-    }
-    if (exceptPeerId) {
-      console.debug(`Sending a message to all the ${this.guestConnectionPromises.size} clients except the peer (peerId = ${exceptPeerId}).`);
-    } else {
-      console.debug(`Sending a message to all the ${this.guestConnectionPromises.size} clients.`);
-    }
-    console.debug(data);
-    for (const [peerId, guestConnectionPromise] of Array.from(this.guestConnectionPromises.entries())) {
-      const guestConnection = await guestConnectionPromise;
-      if (guestConnection!.peer !== exceptPeerId) {
-        console.debug(`Sending a message to the client (peerId = ${peerId}):`);
-        console.debug(data);
-        await guestConnection!.send(data);
-      }
-    }
-  }
-
-  private async sendMessageToHost(data: any) {
-    const hostConnection = await this.hostConnectionPromise;
-    if (!hostConnection) {
-      throw new Error('Host Connection is not available in non-Guest mode.');
-    }
-    console.debug(`Sending a message to the host (peerId = ${this.hostId}).`)
-    console.debug(data);
-    await hostConnection.send(data);
-  }
-
-  private handleData(data: unknown, whom: string) {
-    const e = data as (GameEvent<T> | InternalEvent<T>);
-    if (!e || !e.type) {
-      console.error('missing event or type');
-      return;
-    }
-    console.debug(`Received GameEvent ${e.type} from ${whom}.`);
-    console.debug(e);
-    if (this.hostId) {
-      // guest mode
-      switch (e.type) {
-        case 'private':
-          if (e.recipient === this.peerId) {
-            this.emitter.emit('event', e, e.sender);
-          }
-          break;
-        case 'public':
-          this.emitter.emit('event', e, e.sender);
-          break;
-        case '_members':
-          this.membersSyncedFromHost = e.data;
-          this.emitter.emit('members', this.members);
-          this.publishPublicKey();
-          break;
-        case '_publicKey':
-          const rsaPublicKeyPromise = window.crypto.subtle.importKey(
-            'jwk',
-            e.jwk,
-            {
-              name: 'RSA-OAEP',
-              hash: 'SHA-256',
-            },
-            false,
-            ['encrypt'],
-          );
-          const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
-          if (rsaPublicKeyDeferred) {
-            rsaPublicKeyDeferred.resolve(rsaPublicKeyPromise);
-          } else {
-            // in case _publicKey event arrives before _members
-            const deferred = new Deferred<CryptoKey>();
-            this.rsaPublicKeysOfOthers.set(e.sender, deferred);
-            deferred.resolve(rsaPublicKeyPromise);
-          }
-          break;
-        case '_encrypted':
-          // decrypt using own private key and emit the decrypted PrivateGameEvent
-          this.rsaKeyPairPromise.then(rsaKeyPair => {
-            decrypt(
-              hexToArrayBuffer(e.cipherHex),
-              rsaKeyPair!.privateKey,
-            ).then(decryptedData => {
-              const data = JSON.parse(new TextDecoder().decode(decryptedData));
-              this.emitter.emit('event', data, whom);
-            });
-          });
-          break;
-        case '_replay':
-          for (let [data, whom] of e.events) {
-            this.emitter.emit('event', data, whom, true);
-          }
-          break;
-      }
-    } else {
-      // host mode
-      switch (e.type) {
-        case 'private':
-          if (e.recipient !== this.peerId) {
-            console.warn(`Received a private message in plaintext (sender = ${whom}, recipient = ${e.recipient}).`);
-            this.sendMessageToSingleGuest!(e.recipient, e);
-          } else {
-            this.emitter.emit('event', e, whom);
-          }
-          break;
-        case 'public':
-          this.sendMessageToAllGuests!(e, whom);
-          this.emitter.emit('event', e, whom);
-          break;
-        case '_publicKey':
-          this.sendMessageToAllGuests!(e, whom);
-          const rsaPublicKeyPromise = window.crypto.subtle.importKey(
-            'jwk',
-            e.jwk,
-            {
-              name: 'RSA-OAEP',
-              hash: 'SHA-256',
-            },
-            false,
-            ['encrypt'],
-          );
-          const rsaPublicKeyDeferred = this.rsaPublicKeysOfOthers.get(e.sender);
-          if (rsaPublicKeyDeferred) {
-            rsaPublicKeyDeferred.resolve(rsaPublicKeyPromise);
-          } else {
-            // in case _publicKey event arrives before _members
-            if (!this.rsaPublicKeysOfOthers.has(e.sender)) {
-              const deferred = new Deferred<CryptoKey>();
-              this.rsaPublicKeysOfOthers.set(e.sender, deferred);
-              deferred.resolve(rsaPublicKeyPromise);
-            }
-          }
-          break;
-        case '_encrypted':
-          if (e.recipient === this.peerId) {
-            // decrypt using host's private key and emit the decrypted PrivateGameEvent
-            this.rsaKeyPairPromise.then(rsaKeyPair => {
-              decrypt(
-                hexToArrayBuffer(e.cipherHex),
-                rsaKeyPair!.privateKey,
-              ).then(decryptedData => {
-                const data = JSON.parse(new TextDecoder().decode(decryptedData));
-                this.emitter.emit('event', data, whom);
-              });
-            });
-          } else {
-            this.sendMessageToSingleGuest(e.recipient, e);
-          }
-          break;
-      }
-    }
-  }
-
-  private async fireEventFromGuest(e: GameEvent<T>) {
-    console.debug(`Sending GameEvent ${e.type}.`);
-    console.debug(e);
-    if (e.type === 'public') {
-      await this.sendMessageToHost(e);
-    } else if (e.recipient !== this.peerId) {
-      // when sending private message from guest,
-      // encryption is required, since host is acting as a relay, who can potentially see the plaintext
-      const recipientRsaKeyDeferred = (() => {
-        const recipientRsaKeyDeferred = this.rsaPublicKeysOfOthers.get(e.recipient);
-        if (recipientRsaKeyDeferred) {
-          return recipientRsaKeyDeferred;
-        }
-        // create the Deferred object even the recipient is still unknown.
-        // this could happen when the sender knows the peer.id of the recipient before a `_members` event (e.g. unit testing).
-        const newDeferred = new Deferred<CryptoKey>();
-        this.rsaPublicKeysOfOthers.set(e.recipient, newDeferred);
-        return newDeferred;
-      })();
-      const recipientPublicKey = await recipientRsaKeyDeferred.promise;
-      const dataAsBuffer = new TextEncoder().encode(JSON.stringify(e));
-      const encrypted = await encrypt(dataAsBuffer, recipientPublicKey);
-      const encryptedHex = arrayBufferToHex(encrypted);
-      const encryptedEvent: EncryptedPrivateGameEvent = {
-        type: '_encrypted',
-        sender: e.sender,
-        recipient: e.recipient,
-        cipherHex: encryptedHex,
-      };
-      await this.sendMessageToHost(encryptedEvent);
-    }
-    this.emitter.emit('event', e, await this.peerIdAsync); // echo
-  }
-
-  private async fireEventFromHost(e: GameEvent<T>) {
-    console.debug(`Sending GameEvent ${e.type}.`);
-    console.debug(e);
-    switch (e.type) {
-      case 'private':
-        if (e.recipient !== this.peerId) {
-          // when sending private messages from host,
-          // encryption is not required, since the connection is end-to-end with a relay.
-          await this.sendMessageToSingleGuest(e.recipient, e);
-        } else {
-          this.emitter.emit('event', e, await this.peerIdAsync); // echo
-        }
-        break;
-      case 'public':
-        await this.sendMessageToAllGuests(e);
-        this.emitter.emit('event', e, await this.peerIdAsync); // echo
-        break;
-    }
-  }
-
-  /**
-   * Sends PublicKeyEvent to all guests
-   */
-  private async publishPublicKey() {
-    if (this.hostId) {
-      await this.sendMessageToHost(await this.publicKeyEventAsync());
-    } else {
-      await this.sendMessageToAllGuests(await this.publicKeyEventAsync());
-    }
-  }
-
-  /**
-   * Sends PublicKeyEvent to a single guest
-   */
-  private async publishPublicKeyToSingleGuest(guestPeerId: string) {
-    await this.sendMessageToSingleGuest(guestPeerId, await this.publicKeyEventAsync());
-  }
-
-  /**
-   * @returns PublicKeyEvent from JSON Web Key (asynchronously)
-   */
-  private async publicKeyEventAsync(): Promise<PublicKeyEvent> {
-    return {
-      type: '_publicKey',
-      sender: await this.peerIdAsync,
-      jwk: await this.jwk,
-    };
   }
 }

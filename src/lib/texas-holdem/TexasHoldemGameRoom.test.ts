@@ -58,7 +58,10 @@ class MockMentalPokerGameRoom implements MentalPokerGameRoomLike {
   dealtCards: Parameters<typeof this.dealCard>[] = [];
 
   async startNewRound(settings: MentalPokerRoundSettings) {
-    return ++this.round;
+    const round = ++this.round;
+    // Emit shuffled asynchronously so the caller can register a listener first
+    setTimeout(() => this.listener.emit('shuffled'), 0);
+    return round;
   }
 
   async showCard(round: number, cardOffset: number): Promise<void> {
