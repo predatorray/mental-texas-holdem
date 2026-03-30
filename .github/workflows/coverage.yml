@@ -6,8 +6,8 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-    name: coverage
+  unit:
+    name: unit-coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +22,43 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: coverage
+          name: unit-coverage
           path: coverage/
           retention-days: 30
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
+
+  e2e:
+    name: e2e-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e tests with coverage
+        run: COVERAGE=1 npx playwright test --project=chromium
+      - name: Generate e2e coverage report
+        if: ${{ !cancelled() }}
+        run: ./node_modules/.bin/nyc report --reporter=lcov --report-dir=coverage/e2e
+      - name: Upload e2e coverage reports to Github
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-coverage
+          path: coverage/e2e/
+          retention-days: 30
+      - name: Upload e2e coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: ${{ !cancelled() }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage/e2e/
+          flags: e2e

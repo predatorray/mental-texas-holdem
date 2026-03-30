@@ -28,6 +28,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:coverage": "REACT_APP_COVERAGE=true react-app-rewired start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "e2e": "npx playwright test",
@@ -74,6 +75,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
-    "gh-pages": "^6.1.1"
+    "babel-plugin-istanbul": "^7.0.1",
+    "gh-pages": "^6.1.1",
+    "nyc": "^18.0.0",
+    "react-app-rewired": "^2.2.1"
   }
 }

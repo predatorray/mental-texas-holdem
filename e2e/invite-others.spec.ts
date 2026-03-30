@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './coverage-fixture';
 import {testMultiplePeers} from "./common";
 
 test('Start button is invisible if there is only one player', async ({ page }) => {

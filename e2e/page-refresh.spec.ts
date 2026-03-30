@@ -1,4 +1,5 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect} from './coverage-fixture';
+import {Page} from '@playwright/test';
 import {testMultiplePeers} from "./common";
 
 /**
