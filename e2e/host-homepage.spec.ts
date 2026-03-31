@@ -1,4 +1,4 @@
-import {test, expect} from '@playwright/test';
+import {test, expect} from './coverage-fixture';
 import {expectTestIdsToBeVisible} from "./common";
 
 test('The components are expected to be visible when opened', async ({ page }) => {
