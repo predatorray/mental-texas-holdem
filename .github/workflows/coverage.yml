@@ -25,11 +25,6 @@ jobs:
           name: unit-coverage
           path: coverage/
           retention-days: 30
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: unit
 
   e2e:
     name: e2e-coverage
@@ -55,10 +50,37 @@ jobs:
           name: e2e-coverage
           path: coverage/e2e/
           retention-days: 30
-      - name: Upload e2e coverage to Codecov
+
+  upload:
+    name: upload-coverage
+    needs: [unit, e2e]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage/unit
+        continue-on-error: true
+      - name: Download e2e coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-coverage
+          path: coverage/e2e
+        continue-on-error: true
+      - name: Upload unit coverage to Codecov
+        if: ${{ hashFiles('coverage/unit/lcov.info') != '' }}
         uses: codecov/codecov-action@v5
-        if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: coverage/e2e/
+          files: coverage/unit/lcov.info
+          flags: unit
+      - name: Upload e2e coverage to Codecov
+        if: ${{ hashFiles('coverage/e2e/lcov.info') != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/e2e/lcov.info
           flags: e2e

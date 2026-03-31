@@ -3,6 +3,8 @@ import useMessages, {ChatRoomLike} from "./useMessages";
 import EventEmitter from "eventemitter3";
 import {ChatRoomEvents} from "./ChatRoom";
 
+jest.mock('./setup');
+
 describe('useMessages', () => {
   test('messages are returned', async () => {
     const listener = new EventEmitter<ChatRoomEvents>();
