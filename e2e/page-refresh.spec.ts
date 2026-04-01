@@ -48,7 +48,7 @@ test('Guest refreshes mid-game and reconnects', async ({ browser }) => {
 
   await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
   for (let i = 0; i < 3; i++) {
-    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
   }
 });
 
@@ -57,24 +57,26 @@ test('Action buttons survive guest refresh when it is their turn', async ({ brow
 
   const {hostPage, guestPages} = await testMultiplePeers({browser});
   const guestPage = guestPages[0];
+  const allPages = [hostPage, guestPage];
 
   await hostPage.getByTestId('start-button').click();
 
-  for (const page of [hostPage, guestPage]) {
+  for (const page of allPages) {
     await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
   }
 
-  const hostCallButton = hostPage.getByTestId('check-or-call-action-button');
-  await expect(hostCallButton).toBeVisible();
-  await hostCallButton.click();
+  // Wait for whoever has the first turn; if it's the host, pass turn to guest
+  const firstTurn = await waitForTurn(allPages);
+  if (firstTurn === hostPage) {
+    await hostPage.getByTestId('check-or-call-action-button').click();
+  }
 
-  const guestCheckButton = guestPage.getByTestId('check-or-call-action-button');
-  await expect(guestCheckButton).toBeVisible();
+  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
 
   await guestPage.reload();
 
   await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
-  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible({timeout: 15_000});
+  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
 });
 
 test('Action buttons survive host refresh when it is their turn', async ({ browser }) => {
@@ -82,21 +84,26 @@ test('Action buttons survive host refresh when it is their turn', async ({ brows
 
   const {hostPage, guestPages} = await testMultiplePeers({browser});
   const guestPage = guestPages[0];
+  const allPages = [hostPage, guestPage];
 
   await hostPage.getByTestId('start-button').click();
 
-  for (const page of [hostPage, guestPage]) {
+  for (const page of allPages) {
     await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
   }
 
-  const hostCallButton = hostPage.getByTestId('check-or-call-action-button');
-  await expect(hostCallButton).toBeVisible();
-  await expect(hostCallButton).toHaveText(/CALL/);
+  // Wait for whoever has the first turn; if it's the guest, pass turn to host
+  const firstTurn = await waitForTurn(allPages);
+  if (firstTurn === guestPage) {
+    await guestPage.getByTestId('check-or-call-action-button').click();
+  }
+
+  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
 
   await hostPage.reload();
 
   await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible({timeout: 15_000});
+  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
 });
 
 test('Host refreshes mid-game and reconnects', async ({ browser }) => {
@@ -120,7 +127,7 @@ test('Host refreshes mid-game and reconnects', async ({ browser }) => {
 
   await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 45_000});
   for (let i = 0; i < 3; i++) {
-    await expect(hostPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(hostPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
   }
 });
 
@@ -147,13 +154,13 @@ test('Guest refreshes preflop, then game progresses through flop', async ({ brow
   await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
 
   // Guest should see CHECK button and can continue
-  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible({timeout: 15_000});
+  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
   await guestPage.getByTestId('check-or-call-action-button').click();
 
   // Flop should be revealed (3 face-up board cards)
   for (const page of allPages) {
     for (let i = 0; i < 3; i++) {
-      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
     }
   }
 
@@ -163,7 +170,7 @@ test('Guest refreshes preflop, then game progresses through flop', async ({ brow
 
   // Turn card revealed
   for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
   }
 });
 
@@ -185,7 +192,7 @@ test('Host refreshes preflop, then game progresses through flop', async ({ brows
   await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
 
   // Host should see CALL button after reconnect
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible({timeout: 15_000});
+  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
 
   // Complete preflop
   await checkOrCallOnTurn(allPages);
@@ -194,7 +201,7 @@ test('Host refreshes preflop, then game progresses through flop', async ({ brows
   // Flop should be revealed
   for (const page of allPages) {
     for (let i = 0; i < 3; i++) {
-      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
     }
   }
 
@@ -204,7 +211,7 @@ test('Host refreshes preflop, then game progresses through flop', async ({ brows
 
   // Turn card revealed
   for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
   }
 });
 
@@ -234,7 +241,7 @@ test('Full game with guest refresh during flop betting', async ({ browser }) => 
 
   // Flop cards should still be visible after refresh
   for (let i = 0; i < 3; i++) {
-    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
   }
 
   // Continue through flop
@@ -243,7 +250,7 @@ test('Full game with guest refresh during flop betting', async ({ browser }) => 
 
   // Turn card revealed
   for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
   }
 
   // Continue through turn
@@ -252,7 +259,7 @@ test('Full game with guest refresh during flop betting', async ({ browser }) => 
 
   // River card revealed
   for (const page of allPages) {
-    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back');
   }
 
   // Final round
@@ -261,7 +268,7 @@ test('Full game with guest refresh during flop betting', async ({ browser }) => 
 
   // Game should end
   const continueButton = hostPage.getByTestId('continue-button');
-  await expect(continueButton).toBeVisible({timeout: 15_000});
+  await expect(continueButton).toBeVisible();
 });
 
 // Comprehensive: full game with host refresh during turn betting
@@ -293,7 +300,7 @@ test('Full game with host refresh during turn betting', async ({ browser }) => {
   await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
 
   // Turn card should be visible
-  await expect(hostPage.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+  await expect(hostPage.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
 
   // Continue through turn
   await checkOrCallOnTurn(allPages);
@@ -301,7 +308,7 @@ test('Full game with host refresh during turn betting', async ({ browser }) => {
 
   // River card revealed
   for (const page of allPages) {
-    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back', {timeout: 15_000});
+    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back');
   }
 
   // Final round
@@ -310,5 +317,5 @@ test('Full game with host refresh during turn betting', async ({ browser }) => {
 
   // Game should end
   const continueButton = hostPage.getByTestId('continue-button');
-  await expect(continueButton).toBeVisible({timeout: 15_000});
+  await expect(continueButton).toBeVisible();
 });
