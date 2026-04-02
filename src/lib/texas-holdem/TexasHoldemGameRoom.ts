@@ -125,6 +125,14 @@ export class TexasHoldemGameRoom {
 
   private funds: Map<string, number> = new Map();
 
+  // During replay, Raft's applyCommitted fires all events synchronously via
+  // EventEmitter.  Async handlers (handleBetEvent, handleFoldEvent) modify
+  // shared state (calledPlayers) synchronously but defer continueUnlessAllSet
+  // to microtasks.  Without serialization, every bet's synchronous part runs
+  // before any continueUnlessAllSet, corrupting the per-stage called tracking.
+  // Chain replay events so each handler completes before the next starts.
+  private replayChain: Promise<void> = Promise.resolve();
+
   constructor(
     gameRoom: GameRoomLike<TexasHoldemTableEvent | any>,
     mentalPokerGameRoom: MentalPokerGameRoomLike,
@@ -145,16 +153,21 @@ export class TexasHoldemGameRoom {
 
     // texas holdem event listeners
     this.gameRoom.listener.on('event', this.lcm.register(({ data }, who, replay) => {
-      switch (data.type) {
-        case 'newRound':
-          this.handleNewRoundEvent(data, !!replay);
-          break;
-        case 'action/bet':
-          this.handleBetEvent(data, who, !!replay);
-          break;
-        case 'action/fold':
-          this.handleFoldEvent(data, who, !!replay);
-          break;
+      const handle = () => {
+        switch (data.type) {
+          case 'newRound':
+            return this.handleNewRoundEvent(data, !!replay);
+          case 'action/bet':
+            return this.handleBetEvent(data, who, !!replay);
+          case 'action/fold':
+            return this.handleFoldEvent(data, who, !!replay);
+        }
+      };
+
+      if (replay) {
+        this.replayChain = this.replayChain.then(handle);
+      } else {
+        handle();
       }
     }, listener => this.gameRoom.listener.off('event', listener)));
   }

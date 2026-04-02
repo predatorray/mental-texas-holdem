@@ -161,6 +161,289 @@ describe('TexasHoldemGameRoom', () => {
   });
 });
 
+describe('TexasHoldemGameRoom replay serialization', () => {
+  // Simulates Raft log replay: events are fired synchronously on the gameRoom
+  // listener (as applyCommitted does), with replay=true.  Before the fix in
+  // c177182, async handlers would interleave: every bet's synchronous part
+  // (calledPlayers.add) ran before any continueUnlessAllSet microtask, causing
+  // duplicate allSet emissions and corrupted per-stage tracking.
+
+  test('replayed pre-flop call+check produces exactly one allSet', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B'];
+
+    const texasHoldem = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    const allSetEvents: number[] = [];
+    texasHoldem.listener.on('allSet', (round) => allSetEvents.push(round));
+
+    const whoseTurnEvents: Array<[number, string | null, any?]> = [];
+    texasHoldem.listener.on('whoseTurn', (round, whose, meta) => {
+      whoseTurnEvents.push([round, whose, meta]);
+    });
+
+    // Simulate Raft replaying committed log entries synchronously:
+    // 1. newRound  2. SB calls (bet 1)  3. BB checks (bet 0)
+    // All fired in the same synchronous block, replay=true.
+    const replay = true;
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'newRound', round: 1, players: ['A', 'B'], settings: { initialFundAmount: 100 } },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/bet', round: 1, amount: 1 },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'B',
+      data: { type: 'action/bet', round: 1, amount: 0 },
+    } as any, 'B', replay);
+
+    // Wait for the chained replay promises to settle
+    await new Promise(r => setTimeout(r, 50));
+
+    // allSet should fire exactly once for the pre-flop → flop transition
+    expect(allSetEvents).toEqual([1]);
+
+    // whoseTurn sequence should be:
+    // 1. 'A' with callAmount=1 (after newRound, SB's turn)
+    // 2. 'B' with callAmount=0 (after A calls, BB's turn)
+    // 3. null (allSet clears turn)
+    // 4. 'A' with callAmount=0 (next stage begins, first active player's turn)
+    expect(whoseTurnEvents).toEqual([
+      [1, 'A', { callAmount: 1 }],
+      [1, 'B', { callAmount: 0 }],
+      [1, null, undefined],
+      [1, 'A', { callAmount: 0 }],
+    ]);
+
+    texasHoldem.close();
+  });
+
+  test('replayed pre-flop with raise produces correct turn sequence', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B'];
+
+    const texasHoldem = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    const allSetEvents: number[] = [];
+    texasHoldem.listener.on('allSet', (round) => allSetEvents.push(round));
+
+    const whoseTurnEvents: Array<[number, string | null, any?]> = [];
+    texasHoldem.listener.on('whoseTurn', (round, whose, meta) => {
+      whoseTurnEvents.push([round, whose, meta]);
+    });
+
+    // Replay: newRound → A raises to 4 → B calls → allSet
+    const replay = true;
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'newRound', round: 1, players: ['A', 'B'], settings: { initialFundAmount: 100 } },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/bet', round: 1, amount: 3 }, // SB=1 + 3 = 4 total (raise)
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'B',
+      data: { type: 'action/bet', round: 1, amount: 2 }, // BB=2 + 2 = 4 total (call)
+    } as any, 'B', replay);
+
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(allSetEvents).toEqual([1]);
+
+    // A raises → calledPlayers cleared, A added → B's turn with callAmount=2
+    // B calls → B added → all set
+    expect(whoseTurnEvents).toEqual([
+      [1, 'A', { callAmount: 1 }],      // after newRound
+      [1, 'B', { callAmount: 2 }],      // after A raises
+      [1, null, undefined],              // allSet
+      [1, 'A', { callAmount: 0 }],      // next stage
+    ]);
+
+    texasHoldem.close();
+  });
+
+  test('replayed fold during pre-flop produces LastOneWins', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B'];
+
+    const texasHoldem = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    const winnerEvents: any[] = [];
+    texasHoldem.listener.on('winner', (result) => winnerEvents.push(result));
+
+    const replay = true;
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'newRound', round: 1, players: ['A', 'B'], settings: { initialFundAmount: 100 } },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/fold', round: 1 },
+    } as any, 'A', replay);
+
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(winnerEvents).toEqual([{
+      how: 'LastOneWins',
+      round: 1,
+      winner: 'B',
+    }]);
+
+    texasHoldem.close();
+  });
+
+  test('replayed multi-stage round (pre-flop + flop) serializes correctly', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B'];
+
+    const texasHoldem = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    const allSetEvents: number[] = [];
+    texasHoldem.listener.on('allSet', (round) => allSetEvents.push(round));
+
+    const whoseTurnEvents: Array<[number, string | null, any?]> = [];
+    texasHoldem.listener.on('whoseTurn', (round, whose, meta) => {
+      whoseTurnEvents.push([round, whose, meta]);
+    });
+
+    const replay = true;
+
+    // Pre-flop: newRound → A calls → B checks
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'newRound', round: 1, players: ['A', 'B'], settings: { initialFundAmount: 100 } },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/bet', round: 1, amount: 1 },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'B',
+      data: { type: 'action/bet', round: 1, amount: 0 },
+    } as any, 'B', replay);
+
+    // Resolve flop cards so the stage advances to FLOP
+    mentalPokerGameRoom.listener.emit('card', 1, 0, { suit: 'Club', rank: 'A' } as any);
+    mentalPokerGameRoom.listener.emit('card', 1, 1, { suit: 'Club', rank: 'K' } as any);
+    mentalPokerGameRoom.listener.emit('card', 1, 2, { suit: 'Club', rank: 'Q' } as any);
+
+    // Allow stage to advance to FLOP
+    await new Promise(r => setTimeout(r, 50));
+
+    // Flop: A checks → B checks
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/bet', round: 1, amount: 0 },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'B',
+      data: { type: 'action/bet', round: 1, amount: 0 },
+    } as any, 'B', replay);
+
+    await new Promise(r => setTimeout(r, 50));
+
+    // Should have exactly 2 allSet events: one for pre-flop, one for flop
+    expect(allSetEvents).toEqual([1, 1]);
+
+    texasHoldem.close();
+  });
+
+  test('replayed 3-player pre-flop serializes correctly', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B', 'C'];
+
+    const texasHoldem = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    const allSetEvents: number[] = [];
+    texasHoldem.listener.on('allSet', (round) => allSetEvents.push(round));
+
+    const whoseTurnEvents: Array<[number, string | null, any?]> = [];
+    texasHoldem.listener.on('whoseTurn', (round, whose, meta) => {
+      whoseTurnEvents.push([round, whose, meta]);
+    });
+
+    const replay = true;
+
+    // newRound → C calls (2) → A calls (1) → B checks (0)
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'newRound', round: 1, players: ['A', 'B', 'C'], settings: { initialFundAmount: 100 } },
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'C',
+      data: { type: 'action/bet', round: 1, amount: 2 }, // C calls BB
+    } as any, 'C', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'A',
+      data: { type: 'action/bet', round: 1, amount: 1 }, // A (SB) calls to match BB
+    } as any, 'A', replay);
+
+    gameRoom.listener.emit('event', {
+      type: 'public' as const,
+      sender: 'B',
+      data: { type: 'action/bet', round: 1, amount: 0 }, // B (BB) checks
+    } as any, 'B', replay);
+
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(allSetEvents).toEqual([1]);
+
+    // Turn sequence:
+    // After newRound: C's turn (next to BB) with callAmount=2
+    // After C calls: A's turn with callAmount=1
+    // After A calls: B's turn with callAmount=0
+    // After B checks: allSet → null → next stage first player
+    expect(whoseTurnEvents).toEqual([
+      [1, 'C', { callAmount: 2 }],
+      [1, 'A', { callAmount: 1 }],
+      [1, 'B', { callAmount: 0 }],
+      [1, null, undefined],
+      [1, 'A', { callAmount: 0 }],
+    ]);
+
+    texasHoldem.close();
+  });
+});
+
 describe('TexasHoldemGameRoom with multiple players', () => {
   const testHostAndGuest = async (
     name: string,
