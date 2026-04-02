@@ -14,8 +14,9 @@ Play a live demo [here](https://www.predatorray.me/mental-texas-holdem/).
 
 ### Serverless
 
-The game leverages a WebRTC framework called [PeerJS](https://peerjs.com),
-where no peer-to-peer data goes through the server once connections are established.
+The game is built on top of [dandelion-mesh](https://github.com/predatorray/dandelion-mesh),
+a WebRTC-based peer-to-peer mesh networking library that provides reliable communication
+without any central server. No peer-to-peer data goes through a server once connections are established.
 Technically, there is no "Game Server" running in the background.
 Instead, every player is involved in "serving" the game,
 including shuffling the deck and dealing cards.
@@ -57,12 +58,14 @@ This cryptographic protocol guarantees that no one can know the card values unti
 This protocol is implemented in the separate project: [mental-poker-toolkit](https://github.com/predatorray/mental-poker-toolkit),
 also available on [NPM](https://www.npmjs.com/package/mental-poker-toolkit).
 
-## Limitations
-
 ### Fault Tolerance
 
-Currently, there is no fault tolerance implemented. If a peer disconnects or leaves the game,
-the game will be interrupted, and no recovery mechanism is in place.
+Thanks to [dandelion-mesh](https://github.com/predatorray/dandelion-mesh)'s built-in Raft consensus and
+automatic reconnection, the game is resilient to transient network failures.
+If a peer temporarily disconnects (e.g., due to a page refresh or brief network interruption),
+they can rejoin and the game state will be recovered through Raft log replay.
+
+## Limitations
 
 ### Performance
 
