@@ -80,8 +80,39 @@ async function getOrCreateSessionKeyBundle(): Promise<{
   return { bundle, peerId };
 }
 
+/**
+ * Fetch TURN/STUN ICE servers from metered.ca.
+ *
+ * The API key is read from `REACT_APP_METERED_API_KEY`, which Create React App
+ * inlines into the bundle at build time. The GitHub publish workflow injects the
+ * key from a repository secret. When the variable is absent (local dev, unit
+ * tests, e2e tests) we return `undefined` so PeerJS falls back to its built-in
+ * ICE servers. Note that, because there is no backend, the key is necessarily
+ * plaintext in the shipped bundle.
+ */
+async function fetchMeteredIceServers(): Promise<RTCIceServer[] | undefined> {
+  const apiKey = process.env.REACT_APP_METERED_API_KEY;
+  if (!apiKey) {
+    return undefined;
+  }
+  try {
+    const response = await fetch(
+      `https://predatorray.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`,
+    );
+    if (!response.ok) {
+      throw new Error(`metered.ca responded with ${response.status}`);
+    }
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to fetch ICE servers from metered.ca; falling back to PeerJS defaults.', err);
+    return undefined;
+  }
+}
+
 async function initSetup() {
   const { bundle, peerId } = await getOrCreateSessionKeyBundle();
+
+  const iceServers = await fetchMeteredIceServers();
 
   const bootstrapPeerFromUrl = new URLSearchParams(window.location.search).get('gameRoomId') ?? undefined;
   const storedBootstrapPeers: string[] = JSON.parse(sessionStorage.getItem(SESSION_BOOTSTRAP_PEERS) || '[]');
@@ -91,7 +122,10 @@ async function initSetup() {
     ? [bootstrapPeerFromUrl]
     : storedBootstrapPeers;
 
-  const transport = new PeerJSTransport({ peerId });
+  const transport = new PeerJSTransport({
+    peerId,
+    ...(iceServers ? { peerOptions: { config: { iceServers } } } : {}),
+  });
   const mesh = new DandelionMesh<AllEvents>(transport, {
     bootstrapPeers,
     modulusLength: MODULUS_LENGTH,
