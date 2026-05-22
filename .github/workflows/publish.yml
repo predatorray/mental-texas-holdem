@@ -22,3 +22,4 @@ jobs:
           npm run deploy -- -u "github-actions-bot <support+actions@github.com>"
         env:
           GITHUB_TOKEN: ${{ secrets.DEPLOY_PT }}
+          REACT_APP_METERED_API_KEY: ${{ secrets.METERED_API_KEY }}
