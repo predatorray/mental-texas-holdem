@@ -598,24 +598,41 @@ describe('TexasHoldemGameRoom with multiple players', () => {
     ]);
   });
 
+  // Helper: emit hole cards for all players so hole events resolve.
+  // Player i gets ranks (i*2+2, i*2+3), e.g., player 0: 2c 3d, player 1: 4c 5d.
+  const emitHoleCards = (
+    round: number,
+    players: string[],
+    mentalPokerGameRooms: MockMentalPokerGameRoom[],
+  ) => {
+    for (let i = 0; i < players.length; i++) {
+      const card1 = { suit: 'Club', rank: String(i * 2 + 2) };
+      const card2 = { suit: 'Diamond', rank: String(i * 2 + 3) };
+      for (let mpgr of mentalPokerGameRooms) {
+        mpgr.listener.emit('card', round, i * 2 + 5, card1 as any);
+        mpgr.listener.emit('card', round, i * 2 + 6, card2 as any);
+      }
+    }
+  };
+
   // Helper: start a round and return round number. Sets up funds at 100 each.
   const startRound = async (
     hostTexasHoldemGameRoom: TexasHoldemGameRoom,
     hostMentalPokerGameRoom: MockMentalPokerGameRoom,
     guestMentalPokerGameRoom?: MockMentalPokerGameRoom,
     guestMentalPokerGameRooms?: MockMentalPokerGameRoom[],
+    options?: {
+      // when true, hole cards are not resolved up-front; tests that need the
+      // showdown to happen after betting (as in real play, where cards are
+      // only decrypted once betting completes) emit them via emitHoleCards
+      skipHoleCards?: boolean,
+    },
   ) => {
     const playersPromise = listenOnce(hostTexasHoldemGameRoom, 'players');
     await hostTexasHoldemGameRoom.startNewRound({ initialFundAmount: 100 });
     const [round, players] = await playersPromise;
-    // Emit hole cards for all players so hole events resolve
-    for (let i = 0; i < players.length; i++) {
-      const card1 = { suit: 'Club', rank: String(i * 2 + 2) };
-      const card2 = { suit: 'Diamond', rank: String(i * 2 + 3) };
-      for (let mpgr of [hostMentalPokerGameRoom, ...(guestMentalPokerGameRooms ?? (guestMentalPokerGameRoom ? [guestMentalPokerGameRoom] : []))]) {
-        mpgr.listener.emit('card', round, i * 2 + 5, card1 as any);
-        mpgr.listener.emit('card', round, i * 2 + 6, card2 as any);
-      }
+    if (!options?.skipHoleCards) {
+      emitHoleCards(round, players, [hostMentalPokerGameRoom, ...(guestMentalPokerGameRooms ?? (guestMentalPokerGameRoom ? [guestMentalPokerGameRoom] : []))]);
     }
     // Flush microtasks so handleNewRoundEvent completes (dealCard awaits + blind bets)
     await new Promise(r => setTimeout(r, 0));
@@ -733,7 +750,11 @@ describe('TexasHoldemGameRoom with multiple players', () => {
     const boardSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'board');
     const winnerSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'winner');
 
-    const { round } = await startRound(hostTexasHoldemGameRoom, hostMentalPokerGameRoom, guestMentalPokerGameRoom);
+    // hole cards are revealed only after river betting completes, as in real
+    // play; otherwise the showdown result would be computed too early
+    const { round, players } = await startRound(
+      hostTexasHoldemGameRoom, hostMentalPokerGameRoom, guestMentalPokerGameRoom, undefined,
+      { skipHoleCards: true });
 
     // Pre-flop: host calls, guest checks
     await hostTexasHoldemGameRoom.bet(round, 1);
@@ -790,8 +811,8 @@ describe('TexasHoldemGameRoom with multiple players', () => {
       ])
     );
 
-    // Emit all board cards for showdown winner resolution
-    // (board cards already emitted above)
+    // Emit the hole cards revealed at showdown so the winner can be resolved
+    emitHoleCards(round, players, allRooms);
     await new Promise(r => setTimeout(r, 50));
 
     const winnerEvents = winnerSubscriber.pop();
@@ -799,6 +820,69 @@ describe('TexasHoldemGameRoom with multiple players', () => {
     expect(winnerEvents[0][0].how).toBe('Showdown');
     expect(winnerEvents[0][0].round).toBe(round);
   });
+
+  testHostAndGuest('folded player is excluded from showdown even with the best hand', async (
+    {
+      hostMentalPokerGameRoom,
+      hostTexasHoldemGameRoom,
+      guestMentalPokerGameRooms,
+      guestTexasHoldemGameRooms,
+    }
+  ) => {
+    const allRooms = [hostMentalPokerGameRoom, ...guestMentalPokerGameRooms];
+    const winnerSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'winner');
+    const fundSubscriber = subscribeEvents(hostTexasHoldemGameRoom, 'fund');
+
+    // players: host (SB), guest0 (BB), guest1
+    // startRound deals fixed holes: host = 2c 3d, guest0 = 4c 5d, guest1 = 6c 7d
+    const { round } = await startRound(
+      hostTexasHoldemGameRoom, hostMentalPokerGameRoom, undefined, guestMentalPokerGameRooms);
+
+    // Pre-flop: guest1 calls the BB, host raises all-in, guest0 calls all-in,
+    // guest1 folds → showdown between host and guest0 only.
+    await guestTexasHoldemGameRooms[1].bet(round, 2);
+    await hostTexasHoldemGameRoom.bet(round, 99);
+    await guestTexasHoldemGameRooms[0].bet(round, 98);
+    await guestTexasHoldemGameRooms[1].fold(round);
+    await new Promise(r => setTimeout(r, 50));
+
+    // Board 6h 6s 2h 2s 9c makes guest1 (folded, 6c 7d) the best hand with
+    // sixes full of deuces; host (2c 3d) has deuces full of sixes; guest0 has
+    // only the board's two pairs.
+    const board: Array<{suit: string, rank: string}> = [
+      {suit: 'Heart', rank: '6'},
+      {suit: 'Spade', rank: '6'},
+      {suit: 'Heart', rank: '2'},
+      {suit: 'Spade', rank: '2'},
+      {suit: 'Club', rank: '9'},
+    ];
+    board.forEach((card, offset) => {
+      for (const mpgr of allRooms) {
+        mpgr.listener.emit('card', round, offset, card as any);
+      }
+    });
+    await new Promise(r => setTimeout(r, 50));
+
+    const winnerEvents = winnerSubscriber.pop();
+    expect(winnerEvents.length).toBe(1);
+    const winningResult = winnerEvents[0][0];
+    expect(winningResult.how).toBe('Showdown');
+    if (winningResult.how === 'Showdown') {
+      // the folded guest1 must not appear anywhere in the showdown ranking
+      for (const rank of winningResult.showdown) {
+        expect(rank.players).not.toContain('guest1');
+      }
+      expect(winningResult.showdown[0].players).toEqual(['host']);
+    }
+
+    // host wins the whole pot: 100 (host) + 100 (guest0) + 2 (guest1's call)
+    const fundEvents = fundSubscriber.pop();
+    const lastHostFund = fundEvents.filter(([, , whose]) => whose === 'host').pop();
+    expect(lastHostFund![0]).toBe(202);
+    // the folded player keeps 98 and receives no award
+    const lastGuest1Fund = fundEvents.filter(([, , whose]) => whose === 'guest1').pop();
+    expect(lastGuest1Fund![0]).toBe(98);
+  }, {guests: 2});
 
   testHostAndGuest('raise resets called players and gives opponent another turn', async (
     {

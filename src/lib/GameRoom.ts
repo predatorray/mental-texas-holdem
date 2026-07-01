@@ -1,6 +1,7 @@
 import EventEmitter from "eventemitter3";
 import Deferred from "./Deferred";
 import {EventListener} from "./types";
+import {trackError, trackEvent} from "./analytics";
 
 export type GameRoomStatus =
   | 'NotReady'
@@ -121,6 +122,7 @@ export default class GameRoom<T> {
         this.emitter.emit('event', gameEvent, msg.sender, replay);
       } catch (e) {
         console.error(`[GameRoom] ERROR in event handler for ${(msg.data as any)?.type}:`, e);
+        trackError('game_event_handler', e, {event_type: String((msg.data as any)?.type)});
       }
     });
   }
@@ -165,6 +167,11 @@ export default class GameRoom<T> {
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
     }
     console.warn(`emitEvent (${label}): max retries exceeded, message may be lost.`);
+    trackEvent('msg_send_failed', {
+      kind: label.startsWith('private') ? 'private' : 'public',
+      peers_count: this.mesh.peers.length,
+      has_leader: !!this.mesh.leaderId,
+    });
   }
 
   async emitEvent(e: GameEvent<T>) {
