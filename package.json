@@ -13,7 +13,7 @@
     "@types/node": "^16.18.97",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "dandelion-mesh": "^1.0.0",
+    "dandelion-mesh": "^1.0.1",
     "eventemitter3": "^5.0.1",
     "mental-poker-toolkit": "^1.0.1",
     "peerjs": "^1.5.4",
