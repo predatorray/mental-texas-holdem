@@ -318,6 +318,11 @@ export class TexasHoldemGameRoom {
         }> = [];
         const board = cards.slice(0, 5);
         for (let playerOffset = 0; playerOffset < players.length; ++ playerOffset) {
+          const player = players[playerOffset];
+          if (roundData.foldPlayers.has(player)) {
+            // folded players are not eligible to win at showdown
+            continue;
+          }
           const holeOffsets = [
             playerOffset * 2 + 5,
             playerOffset * 2 + 6,
@@ -329,7 +334,6 @@ export class TexasHoldemGameRoom {
           const holeAndBoard = [...hole, ...board];
           const strength = evaluateStandardCards(holeAndBoard);
           const handValue = handRank(strength);
-          const player = players[playerOffset];
           strengthOfPlayers.push({
             player,
             handValue,
@@ -351,11 +355,13 @@ export class TexasHoldemGameRoom {
           }
         }
 
-        this.emitter.emit('winner', {
+        const winningResult: ShowdownResult = {
           how: 'Showdown',
           round,
           showdown: result,
-        });
+        };
+        roundData.result = winningResult;
+        this.emitter.emit('winner', winningResult);
 
         const awards = this.calculateAwards(roundData, result);
         for (let [winner, award] of Array.from(awards.entries())) {

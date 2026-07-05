@@ -16,8 +16,12 @@ jobs:
     - name: Install dependencies
       run: npm ci
     - name: Install Playwright Browsers
+      # fail fast if a browser download stalls instead of hanging until the
+      # job-level timeout kills the whole run
+      timeout-minutes: 15
       run: npx playwright install --with-deps
     - name: Run Playwright tests
+      timeout-minutes: 40
       run: npx playwright test
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
