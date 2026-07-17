@@ -4,6 +4,10 @@
   "private": true,
   "homepage": "https://predatorray.github.io/mental-texas-holdem",
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.2.0",
+    "@mui/material": "^9.2.0",
     "@multiavatar/multiavatar": "^1.0.7",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -74,10 +78,12 @@
     ]
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.56.0",
     "babel-plugin-istanbul": "^7.0.1",
     "gh-pages": "^6.1.1",
     "nyc": "^18.0.0",
-    "react-app-rewired": "^2.2.1"
+    "peer": "^1.0.2",
+    "react-app-rewired": "^2.2.1",
+    "ws": "^8.21.1"
   }
 }

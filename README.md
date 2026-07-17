@@ -78,6 +78,32 @@ performance may be slower compared to native applications.
 Additionally, the ciphertext size increases exponentially with key size,
 potentially causing network latency during deck shuffling if the key length is too large.
 
+## Development
+
+```sh
+npm install
+
+# run the app locally
+npm start
+
+# unit tests (with coverage)
+npm test -- --coverage
+
+# end-to-end tests (Playwright)
+npx playwright install
+npm run e2e
+```
+
+The e2e suite starts a **local PeerJS signaling server** (`scripts/local-peer-server.js`)
+and points the app at it via the `REACT_APP_PEERJS_*` environment variables
+(see `playwright.config.ts`), so tests do not depend on the public
+`0.peerjs.com` broker. Production builds keep using the PeerJS cloud defaults.
+
+The e2e specs interact with the app exclusively through the page objects in
+`e2e/pages/`, which encapsulate the stable `data-testid` contract documented
+in `e2e/pages/index.ts`. UI redesigns should only require updating that layer,
+not the specs themselves.
+
 ## Support & Bug Report
 
 If you find any bugs or have suggestions, please feel free to [open an issue](https://github.com/predatorray/mental-texas-holdem/issues/new).

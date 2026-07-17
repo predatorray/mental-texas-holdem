@@ -109,6 +109,26 @@ async function fetchMeteredIceServers(): Promise<RTCIceServer[] | undefined> {
   }
 }
 
+/**
+ * Optional PeerJS signaling server override, used by the e2e tests to run
+ * against a local server instead of the public PeerJS cloud broker. When
+ * `REACT_APP_PEERJS_HOST` is unset (production, local dev), PeerJS keeps its
+ * built-in cloud defaults. This only changes where signaling happens — the
+ * peer-to-peer protocol itself is untouched.
+ */
+function peerServerOverride(): {host: string; port: number; path: string; secure: boolean} | undefined {
+  const host = process.env.REACT_APP_PEERJS_HOST;
+  if (!host) {
+    return undefined;
+  }
+  return {
+    host,
+    port: Number(process.env.REACT_APP_PEERJS_PORT ?? '9000'),
+    path: process.env.REACT_APP_PEERJS_PATH ?? '/',
+    secure: process.env.REACT_APP_PEERJS_SECURE === 'true',
+  };
+}
+
 async function initSetup() {
   const { bundle, peerId } = await getOrCreateSessionKeyBundle();
 
@@ -122,9 +142,15 @@ async function initSetup() {
     ? [bootstrapPeerFromUrl]
     : storedBootstrapPeers;
 
+  const peerServer = peerServerOverride();
   const transport = new PeerJSTransport({
     peerId,
-    ...(iceServers ? { peerOptions: { config: { iceServers } } } : {}),
+    ...((iceServers || peerServer) ? {
+      peerOptions: {
+        ...(peerServer ?? {}),
+        ...(iceServers ? { config: { iceServers } } : {}),
+      },
+    } : {}),
   });
   const mesh = new DandelionMesh<AllEvents>(transport, {
     bootstrapPeers,

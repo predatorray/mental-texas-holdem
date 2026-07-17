@@ -77,10 +77,26 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: coverageEnabled ? 'npm run start:coverage' : 'npm run start',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
-  },
+  /* Run the local signaling server and dev server before starting the tests */
+  webServer: [
+    {
+      command: 'node scripts/local-peer-server.js',
+      url: 'http://127.0.0.1:9000/',
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: coverageEnabled ? 'npm run start:coverage' : 'npm run start',
+      url: 'http://127.0.0.1:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        BROWSER: 'none',
+        // Point the app at the local PeerJS signaling server so e2e tests
+        // do not depend on the public 0.peerjs.com broker.
+        REACT_APP_PEERJS_HOST: '127.0.0.1',
+        REACT_APP_PEERJS_PORT: '9000',
+        REACT_APP_PEERJS_PATH: '/',
+      },
+    },
+  ],
 });

@@ -60,7 +60,7 @@ export default function Opponents(props: {
                     data-testid={`opponent-${i}`}
                   >
                     <PlayerAvatar playerId={opponent} playerName={names.get(opponent)} highlight={whoseTurn === opponent}/>
-                    {players && <div className="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
+                    {players && <div className="bankroll" data-testid="bankroll">${bankrolls.get(opponent) ?? 0}</div>}
                     {board && <HandCards hole={holesPerPlayer?.get(opponent)}/>}
                     {
                       actionsDone && <BetAmount playerId={opponent} actionsDone={actionsDone}/>

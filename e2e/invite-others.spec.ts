@@ -1,47 +1,57 @@
 import {test, expect} from './coverage-fixture';
-import {testMultiplePeers} from "./common";
+import {createRoom, PokerApp} from './pages';
 
 test('Start button is invisible if there is only one player', async ({ page }) => {
-  await page.goto('.');
+  const app = new PokerApp(page);
+  await app.goto();
 
-  await expect(page.getByTestId('start-button')).not.toBeVisible();
-  await expect(page.getByTestId('continue-button')).not.toBeVisible();
+  await expect(app.lobby.startButton).not.toBeVisible();
+  await expect(app.table.continueButton).not.toBeVisible();
 });
 
 test('Start button is visible if there are two players', async ({ browser }) => {
-  const {
-    hostPage,
-    guestPages,
-  } = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
 
-  await expect(guestPage.getByTestId('start-button')).not.toBeVisible();
-  await expect(guestPage.getByTestId('continue-button')).not.toBeVisible();
-  const guestStaging = guestPage.getByTestId('staging');
-  await expect(guestStaging).toBeVisible();
-  await expect(guestStaging).toHaveText(/Waiting/);
+  await expect(guest.lobby.startButton).not.toBeVisible();
+  await expect(guest.table.continueButton).not.toBeVisible();
+  await expect(guest.lobby.staging).toBeVisible();
+  await expect(guest.lobby.staging).toHaveText(/Waiting/);
 
-  await expect(hostPage.getByTestId('start-button')).toBeVisible();
+  await expect(host.lobby.startButton).toBeVisible();
+});
+
+test('Both players appear in the lobby player list', async ({ browser }) => {
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+
+  for (const app of [host, guest]) {
+    await expect(app.lobby.playerRow(0)).toBeVisible();
+    await expect(app.lobby.playerRow(1)).toBeVisible();
+  }
+});
+
+test('A player name entered in the lobby is visible to the other peer', async ({ browser }) => {
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+
+  await host.lobby.setMyName('Alice');
+
+  await expect(host.lobby.playersCard).toHaveText(/Alice/);
+  await expect(guest.lobby.playersCard).toHaveText(/Alice/, {timeout: 15_000});
 });
 
 test('Message Bars are working between two peers', async ({ browser }) => {
-  const {
-    hostPage,
-    guestPages,
-  } = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
 
-  const hostMessageInput = hostPage.getByTestId('message-input');
-  await hostMessageInput.fill('ABC');
-  await hostMessageInput.press('Enter');
+  await host.chat.send('ABC');
 
-  await expect(hostPage.getByTestId('message-0').locator('.message-text')).toHaveText('ABC');
-  await expect(guestPage.getByTestId('message-0').locator('.message-text')).toHaveText('ABC');
+  await expect(host.chat.messageText(0)).toHaveText('ABC');
+  await expect(guest.chat.messageText(0)).toHaveText('ABC');
 
-  const guestMessageInput = guestPage.getByTestId('message-input');
-  await guestMessageInput.fill('123');
-  await guestMessageInput.press('Enter');
+  await guest.chat.send('123');
 
-  await expect(hostPage.getByTestId('message-1').locator('.message-text')).toHaveText('123');
-  await expect(guestPage.getByTestId('message-1').locator('.message-text')).toHaveText('123');
+  await expect(host.chat.messageText(1)).toHaveText('123');
+  await expect(guest.chat.messageText(1)).toHaveText('123');
 });

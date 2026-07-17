@@ -1,176 +1,144 @@
 import {test, expect} from './coverage-fixture';
-import {Page} from '@playwright/test';
-import {testMultiplePeers} from "./common";
-
-/**
- * Wait for the check/call action button to appear on one of the given pages.
- * Returns the page where the button became visible.
- */
-async function waitForTurn(pages: Page[]): Promise<Page> {
-  return await Promise.race(
-    pages.map(page =>
-      page.getByTestId('check-or-call-action-button')
-        .waitFor({state: 'visible', timeout: 30_000})
-        .then(() => page)
-    )
-  );
-}
-
-/**
- * Perform a check or call on whichever page currently has the turn.
- */
-async function checkOrCallOnTurn(pages: Page[]): Promise<Page> {
-  const page = await waitForTurn(pages);
-  const button = page.getByTestId('check-or-call-action-button');
-  await button.click();
-  await button.waitFor({state: 'hidden', timeout: 10_000});
-  return page;
-}
+import {checkOrCallOnTurn, createRoom, waitForTurn} from './pages';
 
 test('Guest refreshes mid-game and reconnects', async ({ browser }) => {
   test.setTimeout(60_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
 
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
-  await waitForTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
+  await waitForTurn(allTables);
 
-  await guestPage.reload();
+  await guest.reload();
 
-  await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
-  for (let i = 0; i < 3; i++) {
-    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
-  }
+  await guest.table.waitForGameStarted();
+  await guest.table.expectBoardCardsFaceUp([0, 1, 2]);
 });
 
 test('Action buttons survive guest refresh when it is their turn', async ({ browser }) => {
   test.setTimeout(60_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
 
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
   // Wait for whoever has the first turn; if it's the host, pass turn to guest
-  const firstTurn = await waitForTurn(allPages);
-  if (firstTurn === hostPage) {
-    await hostPage.getByTestId('check-or-call-action-button').click();
+  const firstTurn = await waitForTurn(allTables);
+  if (firstTurn === host.table) {
+    await host.table.checkOrCall();
   }
 
-  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
+  await expect(guest.table.checkOrCallButton).toBeVisible();
 
-  await guestPage.reload();
+  await guest.reload();
 
-  await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
-  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
+  await guest.table.waitForGameStarted();
+  await expect(guest.table.checkOrCallButton).toBeVisible();
 });
 
 test('Action buttons survive host refresh when it is their turn', async ({ browser }) => {
   test.setTimeout(60_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
 
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
   // Wait for whoever has the first turn; if it's the guest, pass turn to host
-  const firstTurn = await waitForTurn(allPages);
-  if (firstTurn === guestPage) {
-    await guestPage.getByTestId('check-or-call-action-button').click();
+  const firstTurn = await waitForTurn(allTables);
+  if (firstTurn === guest.table) {
+    await guest.table.checkOrCall();
   }
 
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
+  await expect(host.table.checkOrCallButton).toBeVisible();
 
-  await hostPage.reload();
+  await host.reload();
 
-  await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
+  await host.table.waitForGameStarted();
+  await expect(host.table.checkOrCallButton).toBeVisible();
 });
 
 test('Host refreshes mid-game and reconnects', async ({ browser }) => {
   test.setTimeout(60_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
 
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
-  await waitForTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
+  await waitForTurn(allTables);
 
-  await hostPage.reload();
+  await host.reload();
 
-  await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 45_000});
-  for (let i = 0; i < 3; i++) {
-    await expect(hostPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
-  }
+  await host.table.waitForGameStarted(45_000);
+  await host.table.expectBoardCardsFaceUp([0, 1, 2]);
 });
 
 // Bug 1: After guest refresh in preflop, game gets stuck in CHECK loop — community cards never appear
 test('Guest refreshes preflop, then game progresses through flop', async ({ browser }) => {
   test.setTimeout(90_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
   // Wait for the game to actually start (action button visible means protocol complete)
-  await waitForTurn(allPages);
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await waitForTurn(allTables);
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
   // Host (SB) calls
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
 
   // Guest (BB) refreshes before checking
-  await guestPage.reload();
-  await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await guest.reload();
+  await guest.table.waitForGameStarted();
 
   // Guest should see CHECK button and can continue
-  await expect(guestPage.getByTestId('check-or-call-action-button')).toBeVisible();
-  await guestPage.getByTestId('check-or-call-action-button').click();
+  await expect(guest.table.checkOrCallButton).toBeVisible();
+  await guest.table.checkOrCall();
 
   // Flop should be revealed (3 face-up board cards)
-  for (const page of allPages) {
-    for (let i = 0; i < 3; i++) {
-      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
-    }
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([0, 1, 2]);
   }
 
   // Game should continue: flop betting
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Turn card revealed
-  for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([3]);
   }
 });
 
@@ -178,40 +146,38 @@ test('Guest refreshes preflop, then game progresses through flop', async ({ brow
 test('Host refreshes preflop, then game progresses through flop', async ({ browser }) => {
   test.setTimeout(90_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
+  await host.lobby.startGame();
   // Wait for the game to actually start (action button appears after protocol + newRound)
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible({timeout: 30_000});
-  await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await expect(host.table.checkOrCallButton).toBeVisible({timeout: 30_000});
+  await guest.table.waitForGameStarted();
 
   // Host (SB) refreshes before taking any action
-  await hostPage.reload();
-  await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await host.reload();
+  await host.table.waitForGameStarted();
 
   // Host should see CALL button after reconnect
-  await expect(hostPage.getByTestId('check-or-call-action-button')).toBeVisible();
+  await expect(host.table.checkOrCallButton).toBeVisible();
 
   // Complete preflop
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Flop should be revealed
-  for (const page of allPages) {
-    for (let i = 0; i < 3; i++) {
-      await expect(page.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
-    }
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([0, 1, 2]);
   }
 
   // Continue through flop
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Turn card revealed
-  for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([3]);
   }
 });
 
@@ -219,103 +185,99 @@ test('Host refreshes preflop, then game progresses through flop', async ({ brows
 test('Full game with guest refresh during flop betting', async ({ browser }) => {
   test.setTimeout(90_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  await host.lobby.startGame();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
   // Preflop: both check/call
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Flop action appears
-  await waitForTurn(allPages);
+  await waitForTurn(allTables);
 
   // Guest refreshes during flop
-  await guestPage.reload();
-  await expect(guestPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await guest.reload();
+  await guest.table.waitForGameStarted();
 
   // Flop cards should still be visible after refresh
-  for (let i = 0; i < 3; i++) {
-    await expect(guestPage.getByTestId(`board-card-${i}`)).not.toHaveAttribute('alt', 'Back');
-  }
+  await guest.table.expectBoardCardsFaceUp([0, 1, 2]);
 
   // Continue through flop
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Turn card revealed
-  for (const page of allPages) {
-    await expect(page.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([3]);
   }
 
   // Continue through turn
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // River card revealed
-  for (const page of allPages) {
-    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back');
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([4]);
   }
 
   // Final round
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Game should end
-  const continueButton = hostPage.getByTestId('continue-button');
-  await expect(continueButton).toBeVisible();
+  await expect(host.table.continueButton).toBeVisible();
 });
 
 // Comprehensive: full game with host refresh during turn betting
 test('Full game with host refresh during turn betting', async ({ browser }) => {
   test.setTimeout(90_000);
 
-  const {hostPage, guestPages} = await testMultiplePeers({browser});
-  const guestPage = guestPages[0];
-  const allPages = [hostPage, guestPage];
+  const {host, guests} = await createRoom({browser});
+  const guest = guests[0];
+  const allTables = [host.table, guest.table];
 
-  await hostPage.getByTestId('start-button').click();
-  for (const page of allPages) {
-    await expect(page.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible();
+  await host.lobby.startGame();
+  for (const app of [host, guest]) {
+    await app.table.waitForGameStarted();
   }
 
   // Preflop
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Flop
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Turn action appears
-  await waitForTurn(allPages);
+  await waitForTurn(allTables);
 
   // Host refreshes during turn
-  await hostPage.reload();
-  await expect(hostPage.getByTestId('opponents').getByTestId('opponent-0')).toBeVisible({timeout: 30_000});
+  await host.reload();
+  await host.table.waitForGameStarted();
 
   // Turn card should be visible
-  await expect(hostPage.getByTestId('board-card-3')).not.toHaveAttribute('alt', 'Back');
+  await host.table.expectBoardCardsFaceUp([3]);
 
   // Continue through turn
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // River card revealed
-  for (const page of allPages) {
-    await expect(page.getByTestId('board-card-4')).not.toHaveAttribute('alt', 'Back');
+  for (const table of allTables) {
+    await table.expectBoardCardsFaceUp([4]);
   }
 
   // Final round
-  await checkOrCallOnTurn(allPages);
-  await checkOrCallOnTurn(allPages);
+  await checkOrCallOnTurn(allTables);
+  await checkOrCallOnTurn(allTables);
 
   // Game should end
-  const continueButton = hostPage.getByTestId('continue-button');
-  await expect(continueButton).toBeVisible();
+  await expect(host.table.continueButton).toBeVisible();
 });

@@ -4,6 +4,14 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import PlayerAvatar from "./PlayerAvatar";
 import {rankDescription} from "phe";
 import DataTestIdAttributes from "../lib/types";
+import Badge from "@mui/material/Badge";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import OutlinedInput from "@mui/material/OutlinedInput";
+import SendIcon from "@mui/icons-material/Send";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlined";
 
 function EventOrMessage(props: {
   myPlayerId: string;
@@ -32,7 +40,7 @@ function EventOrMessage(props: {
                   : props.names.get(em.whose) || em.whose
               }
             </div>
-            <div className="message-text">{em.text}</div>
+            <div className="message-text" data-testid="message-text">{em.text}</div>
           </div>
         </div>
       );
@@ -72,7 +80,7 @@ function EventOrMessage(props: {
             ) : (
               <>
                 {
-                  em.result.showdown[0].players.map(p => <PlayerAvatar playerId={p}/>)
+                  em.result.showdown[0].players.map(p => <PlayerAvatar key={p} playerId={p}/>)
                 }
                 :&nbsp;won ({rankDescription[em.result.showdown[0].handValue]}).
               </>
@@ -103,6 +111,12 @@ export default function MessageBar(props: DataTestIdAttributes & {
   messages: Messages;
   onMessage?: (message: string) => void;
   names: Map<string, string>;
+  /**
+   * 'floating' (default) renders the collapsible chat panel docked to the
+   * bottom-right corner (bottom sheet on small screens). 'inline' renders it
+   * as a block element that fills its parent, used on the lobby page.
+   */
+  variant?: 'floating' | 'inline';
 }) {
   const {
     playerId,
@@ -110,6 +124,7 @@ export default function MessageBar(props: DataTestIdAttributes & {
     messages,
     onMessage,
     names,
+    variant = 'floating',
   } = props;
   const eventsAndMessage: Array<EventLog | Message> = useMemo(() => {
     const merged = [];
@@ -127,8 +142,17 @@ export default function MessageBar(props: DataTestIdAttributes & {
     return merged;
   }, [eventLogs, messages]);
 
-  const [collapsed, setCollapsed] = useState(false);
-  const flipCollapsed = useCallback(() => setCollapsed(collapsed => !collapsed), []);
+  const collapsible = variant === 'floating';
+  // On small screens the floating chat would cover the table, so it starts
+  // collapsed there; on larger screens it starts expanded.
+  const [collapsed, setCollapsed] = useState(
+    () => collapsible && typeof window !== 'undefined' && window.innerWidth <= 600
+  );
+  const flipCollapsed = useCallback(() => {
+    if (collapsible) {
+      setCollapsed(collapsed => !collapsed);
+    }
+  }, [collapsible]);
 
   const [readMessageCount, setReadMessageCount] = useState<number>(0);
   useEffect(() => {
@@ -140,62 +164,108 @@ export default function MessageBar(props: DataTestIdAttributes & {
 
   const [inputValue, setInputValue] = useState('');
 
-  const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = useCallback(e => {
+  const handleInputChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement> = useCallback(e => {
     setInputValue(e.target.value);
   }, []);
 
-  const handleInputKeyUp: React.KeyboardEventHandler<HTMLInputElement>  = useCallback(e => {
-    if (e.key === 'Enter' && inputValue) {
+  const submitMessage = useCallback(() => {
+    if (inputValue) {
       onMessage?.(inputValue);
       setInputValue('');
     }
   }, [inputValue, onMessage]);
 
+  const handleInputKeyUp: React.KeyboardEventHandler<HTMLInputElement | HTMLTextAreaElement> = useCallback(e => {
+    if (e.key === 'Enter') {
+      submitMessage();
+    }
+  }, [submitMessage]);
+
   const messagesDivRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const messagesDiv = messagesDivRef.current;
     messagesDiv?.scrollTo?.(0, messagesDiv.scrollHeight);
-  }, [messages, eventLogs]);
+  }, [messages, eventLogs, collapsed]);
+
+  const classNames = [
+    'message-bar',
+    variant === 'inline' ? 'inline' : 'floating',
+    ...(collapsed ? ['collapsed'] : []),
+  ].join(' ');
 
   return (
-    <div className={collapsed ? "message-bar collapsed" :  "message-bar"} data-testid={props['data-testid'] ?? 'message-bar'}>
+    <div className={classNames} data-testid={props['data-testid'] ?? 'message-bar'}>
       <div className="title-bar" onClick={flipCollapsed} data-testid="title-bar">
         <div className="profile">
-          <PlayerAvatar playerId={playerId}/>
-          <h4>Messages</h4>
+          <ChatBubbleOutlineIcon fontSize="small" sx={{opacity: 0.7}}/>
+          <h4>Chat</h4>
           {
-            (collapsed && unreadMessageCount > 0) && <span className="badge">{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span>
+            (collapsed && unreadMessageCount > 0) &&
+              <Badge
+                badgeContent={unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                color="primary"
+                sx={{ml: 2}}
+                data-testid="unread-badge"
+              />
           }
         </div>
-        <div className="icon">
-          <p style={{transform: collapsed ? 'rotate(-90deg)' : 'rotate(90deg)'}}>❮</p>
-        </div>
-      </div>
-      {
-        eventsAndMessage.length === 0
-          ? <div className="no-messages" data-testid="no-messages">No messages.</div>
-          : (
-            <div ref={messagesDivRef} className="messages">
-              {
-                eventsAndMessage.map((em, i) => <EventOrMessage
-                  key={i}
-                  myPlayerId={playerId}
-                  names={names}
-                  eventOrMessage={em}
-                  dataTestId={`message-${i}`}
-                />)
-              }
+        {
+          collapsible && (
+            <div className="icon">
+              {collapsed ? <ExpandLessIcon/> : <ExpandMoreIcon/>}
             </div>
           )
+        }
+      </div>
+      {
+        !collapsed && (
+          <>
+            {
+              eventsAndMessage.length === 0
+                ? <div className="no-messages" data-testid="no-messages">No messages yet. Say hi!</div>
+                : (
+                  <div ref={messagesDivRef} className="messages">
+                    {
+                      eventsAndMessage.map((em, i) => <EventOrMessage
+                        key={i}
+                        myPlayerId={playerId}
+                        names={names}
+                        eventOrMessage={em}
+                        dataTestId={`message-${i}`}
+                      />)
+                    }
+                  </div>
+                )
+            }
+            <div className="message-input-row">
+              <OutlinedInput
+                className="message-input-field"
+                fullWidth
+                size="small"
+                type="text"
+                placeholder="Type something..."
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyUp={handleInputKeyUp}
+                inputProps={{'data-testid': 'message-input', className: 'message-input'}}
+                endAdornment={
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="send message"
+                      size="small"
+                      edge="end"
+                      onClick={submitMessage}
+                      data-testid="send-message-button"
+                    >
+                      <SendIcon fontSize="small"/>
+                    </IconButton>
+                  </InputAdornment>
+                }
+              />
+            </div>
+          </>
+        )
       }
-      <input className="message-input"
-             type="text"
-             placeholder="Type something..."
-             value={inputValue}
-             onChange={handleInputChange}
-             onKeyUp={handleInputKeyUp}
-             data-testid="message-input"
-      />
     </div>
   );
 }

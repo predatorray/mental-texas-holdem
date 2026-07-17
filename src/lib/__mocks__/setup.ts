@@ -6,6 +6,8 @@ const stubListener = {
   on: emitter.on.bind(emitter),
   off: emitter.off.bind(emitter),
   once: emitter.once.bind(emitter),
+  // test-only: lets unit tests simulate incoming game events
+  emit: emitter.emit.bind(emitter),
 };
 
 const stubGameRoom = {
@@ -20,6 +22,7 @@ export const HostId = undefined;
 export const TexasHoldem = {
   listener: stubListener,
   gameRoom: stubGameRoom,
+  startNewRound: () => Promise.resolve(),
   close: () => {},
 };
 
