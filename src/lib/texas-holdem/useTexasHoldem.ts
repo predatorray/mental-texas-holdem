@@ -456,9 +456,16 @@ export default function useTexasHoldem() {
   const myBetAmount = useMyBetAmount(currentRound, myPlayerId);
 
   const startNewRound = async (settings?: Partial<TexasHoldemRoundSettings>) => {
+    // `?? 100` alone would let NaN (or zero/negative values) through, since
+    // NaN is not nullish — fall back to the default for any invalid amount.
+    const requestedFundAmount = settings?.initialFundAmount;
+    const initialFundAmount =
+      (requestedFundAmount !== undefined && Number.isInteger(requestedFundAmount) && requestedFundAmount > 0)
+        ? requestedFundAmount
+        : 100;
     await TexasHoldem.startNewRound({
       bits: settings?.bits,
-      initialFundAmount: settings?.initialFundAmount ?? 100,
+      initialFundAmount,
     });
   };
 

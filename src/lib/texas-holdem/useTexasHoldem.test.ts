@@ -562,6 +562,25 @@ describe('useTexasHoldem', () => {
     });
   });
 
+  test.each([
+    ['NaN', NaN],
+    ['zero', 0],
+    ['negative', -50],
+    ['fractional', 12.5],
+    ['infinite', Infinity],
+  ])('startGame falls back to the default fund amount when given %s', async (_label, invalidAmount) => {
+    const {result} = renderHook(() => useTexasHoldem());
+
+    await act(async () => {
+      await result.current.startGame({initialFundAmount: invalidAmount, bits: 32});
+    });
+
+    expect(mockStartNewRound).toHaveBeenCalledWith({
+      bits: 32,
+      initialFundAmount: 100,
+    });
+  });
+
   test('round change resets board for new round', () => {
     const {result} = renderHook(() => useTexasHoldem());
 

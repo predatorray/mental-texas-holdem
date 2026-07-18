@@ -25,7 +25,14 @@ export default function GameSettings(props: {
   const enoughMembersToPlay = useMemo(() => members.length > 1, [members]);
 
   const [initialFundAmountInput, setInitialFundAmountInput] = useState('100');
-  const initialFundAmount = useMemo(() => parseInt(initialFundAmountInput), [initialFundAmountInput]);
+  const initialFundAmount = useMemo(() => Number(initialFundAmountInput), [initialFundAmountInput]);
+  // Guard against NaN/zero/negative/fractional amounts: NaN in particular
+  // would survive the downstream `?? 100` default (it is not nullish) and
+  // corrupt every player's bankroll.
+  const initialFundAmountValid = useMemo(
+    () => Number.isInteger(initialFundAmount) && initialFundAmount > 0,
+    [initialFundAmount],
+  );
   const [bits, setBits] = useState(32);
 
   return (
@@ -58,7 +65,9 @@ export default function GameSettings(props: {
             fullWidth
             value={initialFundAmountInput}
             onChange={(e) => setInitialFundAmountInput(e.target.value)}
-            slotProps={{htmlInput: {'data-testid': 'initial-fund-amount-input'}}}
+            error={!initialFundAmountValid}
+            helperText={initialFundAmountValid ? undefined : 'Enter a positive whole number.'}
+            slotProps={{htmlInput: {'data-testid': 'initial-fund-amount-input', min: 1, step: 1}}}
           />
           <TextField
             label="Encryption Key Length (bits)"
@@ -86,7 +95,12 @@ export default function GameSettings(props: {
                   variant="contained"
                   size="large"
                   startIcon={<PlayArrowIcon/>}
-                  onClick={() => startGame({bits, initialFundAmount})}
+                  disabled={!initialFundAmountValid}
+                  onClick={() => {
+                    if (initialFundAmountValid) {
+                      startGame({bits, initialFundAmount});
+                    }
+                  }}
                   data-testid="start-button"
                 >
                   start
