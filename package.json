@@ -32,6 +32,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:e2e": "react-app-rewired start",
     "start:coverage": "REACT_APP_COVERAGE=true react-app-rewired start",
     "build": "react-scripts build",
     "test": "react-scripts test",
