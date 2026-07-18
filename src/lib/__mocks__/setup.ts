@@ -22,6 +22,8 @@ export const HostId = undefined;
 export const TexasHoldem = {
   listener: stubListener,
   gameRoom: stubGameRoom,
+  peerIdAsync: new Promise<string>(() => {}), // pending: tests drive state via events
+  members: [] as string[],
   startNewRound: () => Promise.resolve(),
   close: () => {},
 };
