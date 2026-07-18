@@ -69,8 +69,14 @@
   border-radius: 50%;
 }
 
-.avatar.highlight {
-  box-shadow: 0 0 30px white;
+/*
+ * The glow marking whose turn it is. It sits on the (square, circularly
+ * masked) avatar image rather than the .avatar wrapper, which stretches to
+ * its parent's width and would render the glow as an oval.
+ */
+.avatar.highlight img {
+  border-radius: 50%;
+  box-shadow: 0 0 30px 6px rgba(255, 255, 255, 0.85);
 }
 
 .avatar-label {
