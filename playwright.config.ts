@@ -77,10 +77,33 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: coverageEnabled ? 'npm run start:coverage' : 'npm run start',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
-  },
+  /* Run the local signaling server and dev server before starting the tests */
+  webServer: [
+    {
+      command: 'node scripts/local-peer-server.js',
+      url: 'http://127.0.0.1:9000/',
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      // react-app-rewired start, so config-overrides.js can proxy /peerjs
+      // (HTTP + WebSocket) through the dev server origin. The app then
+      // connects to ws://127.0.0.1:3000/peerjs — same origin as the page —
+      // which keeps WebKit happy: it blocks insecure cross-origin ws://
+      // connections even to loopback (https://bugs.webkit.org/show_bug.cgi?id=171934).
+      command: coverageEnabled ? 'npm run start:coverage' : 'npm run start:e2e',
+      url: 'http://127.0.0.1:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        BROWSER: 'none',
+        // Point the app at the local PeerJS signaling server (proxied via
+        // the dev server, see config-overrides.js) so e2e tests do not
+        // depend on the public 0.peerjs.com broker.
+        REACT_APP_PEERJS_HOST: '127.0.0.1',
+        REACT_APP_PEERJS_PORT: '3000',
+        REACT_APP_PEERJS_PATH: '/',
+        PEERJS_SERVER_PORT: '9000',
+      },
+    },
+  ],
 });

@@ -74,6 +74,17 @@ class MockMentalPokerGameRoom implements MentalPokerGameRoomLike {
 }
 
 describe('TexasHoldemGameRoom', () => {
+  test('exposes peerIdAsync and members for state backfill after late subscription', async () => {
+    const gameRoom = new MockGameRoom();
+    gameRoom.peerIdDeferred.resolve('A');
+    const mentalPokerGameRoom = new MockMentalPokerGameRoom();
+    mentalPokerGameRoom.members = ['A', 'B'];
+    const texasHoldemGameRoom = new TexasHoldemGameRoom(gameRoom, mentalPokerGameRoom);
+
+    await expect(texasHoldemGameRoom.peerIdAsync).resolves.toBe('A');
+    expect(texasHoldemGameRoom.members).toEqual(['A', 'B']);
+  });
+
   test('new round cannot be started when there is only one player', async () => {
     const gameRoom = new MockGameRoom();
     const mentalPokerGameRoom = new MockMentalPokerGameRoom();

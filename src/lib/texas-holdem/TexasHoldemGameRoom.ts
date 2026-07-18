@@ -243,6 +243,20 @@ export class TexasHoldemGameRoom {
     return this.emitter;
   }
 
+  /**
+   * Resolves with this client's peer id once connected. Lets UI hooks that
+   * mount after the connection completed backfill the value they would
+   * otherwise have missed from the one-shot 'connected' event.
+   */
+  get peerIdAsync(): Promise<string> {
+    return this.gameRoom.peerIdAsync;
+  }
+
+  /** The current room members, for the same backfill purpose as peerIdAsync. */
+  get members(): string[] {
+    return this.mentalPokerGameRoom.members;
+  }
+
   close() {
     this.lcm.close();
   }

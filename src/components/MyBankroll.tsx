@@ -8,5 +8,5 @@ export default function MyBankroll(props: {
   if (!props.playerId || !props.players) {
     return <></>;
   }
-  return <div className="bankroll">${props.bankrolls.get(props.playerId ?? '') ?? 0}</div>;
+  return <div className="bankroll" data-testid="my-bankroll">${props.bankrolls.get(props.playerId ?? '') ?? 0}</div>;
 }

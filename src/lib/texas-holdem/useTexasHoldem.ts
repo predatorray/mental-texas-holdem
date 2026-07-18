@@ -10,7 +10,17 @@ function useMyPlayerId() {
   useEffect(() => {
     const peerIdListener = (peerIdAssigned: string) => setPeerId(peerIdAssigned);
     TexasHoldem.listener.on('connected', peerIdListener);
+    // The connection may complete before this hook subscribes (e.g. with a
+    // near-instant local signaling server), in which case the one-shot
+    // 'connected' event was already emitted — backfill from the promise.
+    let cancelled = false;
+    TexasHoldem.peerIdAsync.then(peerIdAssigned => {
+      if (!cancelled) {
+        setPeerId(peerIdAssigned);
+      }
+    });
     return () => {
+      cancelled = true;
       TexasHoldem.listener.off('connected', peerIdListener);
     }
   }, []);
@@ -37,6 +47,12 @@ function useGameSetup() {
       setMembers([...membersUpdated]);
     };
     TexasHoldem.listener.on('members', membersListener);
+    // Backfill members that joined before this hook subscribed (the initial
+    // 'members' event fires together with 'connected' and may precede mount).
+    const currentMembers = TexasHoldem.members;
+    if (currentMembers.length > 0) {
+      setMembers([...currentMembers]);
+    }
     return () => {
       TexasHoldem.listener.off('members', membersListener);
     };
@@ -440,9 +456,16 @@ export default function useTexasHoldem() {
   const myBetAmount = useMyBetAmount(currentRound, myPlayerId);
 
   const startNewRound = async (settings?: Partial<TexasHoldemRoundSettings>) => {
+    // `?? 100` alone would let NaN (or zero/negative values) through, since
+    // NaN is not nullish — fall back to the default for any invalid amount.
+    const requestedFundAmount = settings?.initialFundAmount;
+    const initialFundAmount =
+      (requestedFundAmount !== undefined && Number.isInteger(requestedFundAmount) && requestedFundAmount > 0)
+        ? requestedFundAmount
+        : 100;
     await TexasHoldem.startNewRound({
       bits: settings?.bits,
-      initialFundAmount: settings?.initialFundAmount ?? 100,
+      initialFundAmount,
     });
   };
 

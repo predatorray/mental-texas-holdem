@@ -68,6 +68,33 @@ describe('useTexasHoldem', () => {
     expect(result.current.playerId).toBe('player-A');
   });
 
+  test('playerId is backfilled when the connection completed before mount', async () => {
+    // Simulate the 'connected' event having fired before the hook mounted:
+    // no event is emitted, only the already-resolved peerIdAsync remains.
+    const originalPeerIdAsync = (TexasHoldem as any).peerIdAsync;
+    (TexasHoldem as any).peerIdAsync = Promise.resolve('early-bird');
+    try {
+      const {result} = renderHook(() => useTexasHoldem());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(result.current.playerId).toBe('early-bird');
+    } finally {
+      (TexasHoldem as any).peerIdAsync = originalPeerIdAsync;
+    }
+  });
+
+  test('members are backfilled when they joined before mount', () => {
+    const originalMembers = (TexasHoldem as any).members;
+    (TexasHoldem as any).members = ['player-A', 'player-B'];
+    try {
+      const {result} = renderHook(() => useTexasHoldem());
+      expect(result.current.members).toEqual(['player-A', 'player-B']);
+    } finally {
+      (TexasHoldem as any).members = originalMembers;
+    }
+  });
+
   test('status event updates peerState', () => {
     const {result} = renderHook(() => useTexasHoldem());
 
@@ -532,6 +559,25 @@ describe('useTexasHoldem', () => {
     expect(mockStartNewRound).toHaveBeenCalledWith({
       bits: 256,
       initialFundAmount: 500,
+    });
+  });
+
+  test.each([
+    ['NaN', NaN],
+    ['zero', 0],
+    ['negative', -50],
+    ['fractional', 12.5],
+    ['infinite', Infinity],
+  ])('startGame falls back to the default fund amount when given %s', async (_label, invalidAmount) => {
+    const {result} = renderHook(() => useTexasHoldem());
+
+    await act(async () => {
+      await result.current.startGame({initialFundAmount: invalidAmount, bits: 32});
+    });
+
+    expect(mockStartNewRound).toHaveBeenCalledWith({
+      bits: 32,
+      initialFundAmount: 100,
     });
   });
 
